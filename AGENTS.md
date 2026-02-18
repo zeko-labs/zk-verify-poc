@@ -72,7 +72,7 @@ If either skill is missing, add a `BLOCKED` item in `TASKLIST.md` and resolve be
   - `oxlint` for linting
   - `oxfmt` for formatting
 - Required validation command: `moon run workspace:validate`.
-- Required end-to-end runner: `moon run workspace:run`.
+- Required end-to-end runner: `moon run workspace:run`. Before running, verify the `.env` file exists at the repo root.
 
 ## Security and Secrets
 - Never commit private keys.

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createServer, type ServerOptions } from "node:https";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const TLS_VERSION_OPTIONS = {
@@ -20,23 +20,51 @@ export const EMPLOYEE_RECORD = {
 };
 
 const DEFAULT_PORT = 4443;
+const FILE_DIR = dirname(fileURLToPath(import.meta.url));
 
-function createTlsServerOptions(baseDir: string): ServerOptions {
-  const certPath = resolve(baseDir, "cert.pem");
-  const keyPath = resolve(baseDir, "key.pem");
+export interface TlsFilePaths {
+  certPath: string;
+  keyPath: string;
+}
+
+interface StartMockServerOptions {
+  port?: number;
+  certPath?: string;
+  keyPath?: string;
+}
+
+function readTlsFile(path: string, label: "cert" | "key"): Buffer {
+  try {
+    return readFileSync(path);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`failed to read TLS ${label} file at ${path}: ${message}`);
+  }
+}
+
+function resolveTlsFilePaths(input?: Partial<TlsFilePaths>): TlsFilePaths {
+  return {
+    certPath: input?.certPath ?? resolve(FILE_DIR, "cert.pem"),
+    keyPath: input?.keyPath ?? resolve(FILE_DIR, "key.pem"),
+  };
+}
+
+export function createTlsServerOptions(input?: Partial<TlsFilePaths>): ServerOptions {
+  const { certPath, keyPath } = resolveTlsFilePaths(input);
 
   return {
-    cert: readFileSync(certPath),
-    key: readFileSync(keyPath),
+    cert: readTlsFile(certPath, "cert"),
+    key: readTlsFile(keyPath, "key"),
     ...TLS_VERSION_OPTIONS,
   };
 }
 
-export function startMockServer(port = DEFAULT_PORT): void {
-  const fileDir = resolve(fileURLToPath(import.meta.url), "..");
-  const options = createTlsServerOptions(fileDir);
+export function startMockServer(options?: number | StartMockServerOptions): void {
+  const port = typeof options === "number" ? options : (options?.port ?? DEFAULT_PORT);
+  const tlsOptions = typeof options === "number" ? undefined : options;
+  const serverOptions = createTlsServerOptions(tlsOptions);
 
-  const server = createServer(options, (req, res) => {
+  const server = createServer(serverOptions, (req, res) => {
     if (req.method === "GET" && req.url === "/api/v1/employee/EMP-001") {
       res.writeHead(200, {
         "content-type": "application/json",

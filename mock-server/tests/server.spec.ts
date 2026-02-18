@@ -1,6 +1,9 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { EMPLOYEE_RECORD, TLS_VERSION_OPTIONS } from "../server.js";
+import { EMPLOYEE_RECORD, TLS_VERSION_OPTIONS, createTlsServerOptions } from "../server.js";
 
 describe("mock server configuration", () => {
   it("Given mock server constants When inspected Then TLS is forced to 1.2", () => {
@@ -12,5 +15,30 @@ describe("mock server configuration", () => {
     expect(EMPLOYEE_RECORD.employee_id).toBe("EMP-001");
     expect(EMPLOYEE_RECORD.annual_salary).toBe(85000);
     expect(EMPLOYEE_RECORD.employment_status).toBe("active");
+  });
+
+  it("Given invalid cert and key paths When TLS server options are loaded Then fail-fast diagnostics include file paths", () => {
+    expect(() =>
+      createTlsServerOptions({
+        certPath: "/tmp/does-not-exist-cert.pem",
+        keyPath: "/tmp/does-not-exist-key.pem",
+      }),
+    ).toThrow(/failed to read TLS cert file at \/tmp\/does-not-exist-cert\.pem/);
+  });
+
+  it("Given readable cert and key files When TLS server options are loaded Then TLS 1.2 options are preserved", () => {
+    const fixtureDir = mkdtempSync(join(tmpdir(), "mock-server-cert-fixture-"));
+    const certPath = join(fixtureDir, "cert.pem");
+    const keyPath = join(fixtureDir, "key.pem");
+    writeFileSync(certPath, "CERTIFICATE-DATA", "utf8");
+    writeFileSync(keyPath, "KEY-DATA", "utf8");
+
+    const options = createTlsServerOptions({
+      certPath,
+      keyPath,
+    });
+
+    expect(options.minVersion).toBe("TLSv1.2");
+    expect(options.maxVersion).toBe("TLSv1.2");
   });
 });

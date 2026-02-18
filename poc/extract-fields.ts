@@ -1,8 +1,9 @@
 import { buildDisclosedFields } from "./lib/disclosure.js";
 import { readJsonFile, writeJsonFile } from "./lib/io.js";
+import { outputDir } from "./lib/paths.js";
 
-const ATTESTATION_PATH = "output/attestation.json";
-const DISCLOSED_PATH = "output/disclosed-fields.json";
+const ATTESTATION_PATH = `${outputDir()}/attestation.json`;
+const DISCLOSED_PATH = `${outputDir()}/disclosed-fields.json`;
 
 async function main(): Promise<void> {
   const attestation = await readJsonFile<unknown>(ATTESTATION_PATH);

@@ -29,13 +29,13 @@ pub fn split_signature_64(signature: &[u8]) -> Result<([u8; 32], [u8; 32])> {
 }
 
 pub fn required_env(name: &str) -> Result<String> {
-    std::env::var(name).map_err(|_| anyhow!("missing required environment variable: {name}"))
+    std::env::var(name).map_err(|_| anyhow!("missing required env var: {name}"))
 }
 
 #[cfg(test)]
 #[allow(non_snake_case)]
 mod tests {
-    use super::{parse_hex32, split_signature_64};
+    use super::{parse_hex32, required_env, split_signature_64};
 
     #[test]
     fn Given_valid_32_byte_hex_When_parsed_Then_array_is_returned() {
@@ -59,5 +59,23 @@ mod tests {
         assert_eq!(s.len(), 32);
         assert_eq!(r[0], 1);
         assert_eq!(s[0], 1);
+    }
+
+    #[test]
+    fn Given_missing_TLSNOTARY_SIGNING_KEY_HEX_When_loading_required_env_Then_error_uses_fail_fast_contract(
+    ) {
+        let var_name = "TLSNOTARY_SIGNING_KEY_HEX";
+        let previous = std::env::var(var_name).ok();
+        std::env::remove_var(var_name);
+
+        let error = required_env(var_name).expect_err("missing env var should fail");
+        assert_eq!(
+            error.to_string(),
+            "missing required env var: TLSNOTARY_SIGNING_KEY_HEX"
+        );
+
+        if let Some(value) = previous {
+            std::env::set_var(var_name, value);
+        }
     }
 }

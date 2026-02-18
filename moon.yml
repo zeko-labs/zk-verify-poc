@@ -16,3 +16,5 @@ tasks:
       - 'tlsnotary:test'
   run:
     command: './run-poc.sh'
+    options:
+      cache: false

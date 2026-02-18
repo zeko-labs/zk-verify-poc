@@ -32,22 +32,32 @@ tasks:
     command: "pnpm exec tsx poc/extract-fields.ts"
     options:
       runFromWorkspaceRoot: true
+      cache: false
   prove:
     command: "pnpm exec tsx poc/prove.ts"
     options:
       runFromWorkspaceRoot: true
+      cache: false
   verify:
     command: "pnpm exec tsx poc/verify.ts"
     options:
       runFromWorkspaceRoot: true
+      cache: false
+  verify-chain:
+    command: "pnpm exec tsx poc/verify-chain.ts"
+    options:
+      runFromWorkspaceRoot: true
+      cache: false
   deploy:
     command: "pnpm exec tsx poc/deploy.ts"
     options:
       runFromWorkspaceRoot: true
+      cache: false
   settle:
     command: "pnpm exec tsx poc/settle.ts"
     options:
       runFromWorkspaceRoot: true
+      cache: false
   gen-wallet:
     command: "pnpm exec tsx poc/gen-wallet.ts"
     options:

@@ -35,7 +35,6 @@ use zkverify_tlsnotary::split_signature_64;
 
 const MAX_SENT_DATA: usize = 1 << 12;
 const MAX_RECV_DATA: usize = 1 << 14;
-const OUTPUT_FILE: &str = "../output/attestation.json";
 
 #[derive(Debug, Serialize)]
 struct AttestationOutput {
@@ -282,14 +281,18 @@ async fn main() -> Result<()> {
         signature_alg: "secp256k1".to_string(),
     };
 
-    tokio::fs::create_dir_all("../output").await?;
+    let output_dir =
+        std::env::var("OUTPUT_DIR").unwrap_or_else(|_| "../output".to_string());
+    let output_file = format!("{output_dir}/attestation.json");
+
+    tokio::fs::create_dir_all(&output_dir).await?;
     tokio::fs::write(
-        OUTPUT_FILE,
+        &output_file,
         format!("{}\n", serde_json::to_string_pretty(&output)?),
     )
     .await?;
 
-    println!("[prover] Attestation written to {OUTPUT_FILE}");
+    println!("[prover] Attestation written to {output_file}");
 
     Ok(())
 }

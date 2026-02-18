@@ -1,9 +1,10 @@
 import { verify } from "o1js";
 
 import { readJsonFile } from "./lib/io.js";
+import { outputDir } from "./lib/paths.js";
 
-const PROOF_PATH = "output/proof.json";
-const VK_PATH = "output/verification-key.json";
+const PROOF_PATH = `${outputDir()}/proof.json`;
+const VK_PATH = `${outputDir()}/verification-key.json`;
 
 interface StoredProof {
   proof: {

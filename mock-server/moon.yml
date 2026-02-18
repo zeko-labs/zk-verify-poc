@@ -7,6 +7,7 @@ tasks:
     command: "pnpm exec tsx mock-server/server.ts"
     options:
       runFromWorkspaceRoot: true
+      cache: false
   test:
     command: "pnpm exec vitest run --config mock-server/vitest.config.ts"
     options:
