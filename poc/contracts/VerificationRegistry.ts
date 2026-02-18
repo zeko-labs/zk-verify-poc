@@ -1,5 +1,7 @@
 import { Field, SmartContract, State, Struct, declareMethods, declareState } from "o1js";
 
+import { EligibilityProof } from "../circuits/eligibility.js";
+
 export class VerificationEvent extends Struct({
   proofHash: Field,
   result: Field,
@@ -19,7 +21,10 @@ export class VerificationRegistry extends SmartContract {
     this.lastResult.set(Field(0));
   }
 
-  async recordVerification(proofHash: Field, result: Field) {
+  async recordVerification(proofHash: Field, proof: EligibilityProof) {
+    proof.verify();
+
+    const result = proof.publicOutput.toField();
     this.lastProofHash.set(proofHash);
     this.lastResult.set(result);
 
@@ -41,5 +46,5 @@ declareState(VerificationRegistry, {
 
 declareMethods(VerificationRegistry, {
   init: [],
-  recordVerification: [Field, Field],
+  recordVerification: [Field, EligibilityProof],
 } as any);

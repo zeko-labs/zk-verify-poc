@@ -1,5 +1,6 @@
 import { AccountUpdate, Mina, PrivateKey, PublicKey, fetchAccount } from "o1js";
 
+import { EligibilityProgram } from "./circuits/eligibility.js";
 import { VerificationRegistry } from "./contracts/VerificationRegistry.js";
 import { loadRuntimeEnv } from "./lib/env.js";
 import { writeJsonFile } from "./lib/io.js";
@@ -60,10 +61,19 @@ async function main(): Promise<void> {
   }
   const feePayerNonceBefore = Number(feePayerAccount.account?.nonce.toString() ?? "0");
 
+  console.log("[deploy] Compiling EligibilityProgram...");
+  await EligibilityProgram.compile();
+  console.log("[deploy] Compiling VerificationRegistry contract...");
+  const { verificationKey } = await VerificationRegistry.compile();
+
   const zkAppAccount = await fetchAccount({ publicKey: zkAppPublicKey });
-  if (!zkAppAccount.error && zkAppAccount.account) {
+  const hasExistingAccount = !zkAppAccount.error && Boolean(zkAppAccount.account);
+  const onChainVerificationKeyHash = zkAppAccount.account?.zkapp?.verificationKey?.hash?.toString();
+  const targetVerificationKeyHash = verificationKey.hash.toString();
+
+  if (hasExistingAccount && onChainVerificationKeyHash === targetVerificationKeyHash) {
     console.log(
-      "[deploy] Existing zkApp account detected. Skipping redeploy and writing output metadata.",
+      "[deploy] Existing zkApp account detected with matching verification key. Skipping redeploy.",
     );
     await writeJsonFile(DEPLOYED_PATH, {
       zkapp_public_key: zkAppPublicKey.toBase58(),
@@ -75,15 +85,22 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log("[deploy] Compiling VerificationRegistry contract...");
-  const { verificationKey } = await VerificationRegistry.compile();
+  if (hasExistingAccount) {
+    console.log("[deploy] Existing zkApp account detected with mismatched verification key.");
+    console.log(
+      `[deploy] On-chain verification key hash: ${onChainVerificationKeyHash ?? "missing"}`,
+    );
+    console.log(`[deploy] Target verification key hash: ${targetVerificationKeyHash}`);
+  }
 
   const zkApp = new VerificationRegistry(zkAppPublicKey);
 
   const tx = await Mina.transaction(
     { sender: feePayerPublicKey, fee: TX_FEE, nonce: feePayerNonceBefore },
     async () => {
-      AccountUpdate.fundNewAccount(feePayerPublicKey);
+      if (!hasExistingAccount) {
+        AccountUpdate.fundNewAccount(feePayerPublicKey);
+      }
       await zkApp.deploy({ verificationKey });
     },
   );
@@ -101,6 +118,8 @@ async function main(): Promise<void> {
     zkapp_public_key: zkAppPublicKey.toBase58(),
     zkapp_private_key_generated: env.zkappPrivateKey ? false : true,
     deploy_tx_hash: pendingTx.hash,
+    already_deployed: hasExistingAccount,
+    verification_key_hash: targetVerificationKeyHash,
   });
 
   console.log("[deploy] Saved output/deployed-address.json");

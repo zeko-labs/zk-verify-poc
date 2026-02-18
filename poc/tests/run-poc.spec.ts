@@ -58,6 +58,7 @@ function runPipeline(options?: { failTarget?: string }): PipelineRunResult {
       PATH: `${binDir}:${process.env.PATH ?? ""}`,
       RUN_POC_TEST_LOG: logPath,
       RUN_POC_TEST_FAIL_TARGET: options?.failTarget ?? "",
+      RUN_POC_SKIP_READY_CHECK: "1",
     },
     encoding: "utf8",
     timeout: 60_000,
@@ -80,15 +81,32 @@ function expectOrder(logLines: string[], targets: string[]): void {
   }
 }
 
+function expectLogged(logLines: string[], target: string): number {
+  const index = logLines.indexOf(`run:${target}`);
+  expect(index).toBeGreaterThanOrEqual(0);
+  return index;
+}
+
 describe("run-poc smoke behavior", () => {
+  it("Given startup orchestration script When inspected Then service startup waits use readiness polling instead of fixed sleeps", () => {
+    const script = readFileSync("run-poc.sh", "utf8");
+
+    expect(script).toContain("wait_for_tcp");
+    expect(script).not.toContain('sleep "$MOCK_SERVER_STARTUP_DELAY_SEC"');
+    expect(script).not.toContain('sleep "$NOTARY_STARTUP_DELAY_SEC"');
+  });
+
   it("Given successful stage execution When run-poc.sh runs Then startup order and cleanup diagnostics are emitted", () => {
     const result = runPipeline();
 
     expect(result.status).toBe(0);
+    const mockServerIndex = expectLogged(result.logLines, "mock-server:serve");
+    expectLogged(result.logLines, "tlsnotary:notary");
+    const tlsnProverIndex = expectLogged(result.logLines, "tlsnotary:prover");
+    const extractIndex = expectLogged(result.logLines, "poc:extract");
+    expect(tlsnProverIndex).toBeLessThan(extractIndex);
+    expect(mockServerIndex).toBeLessThan(extractIndex);
     expectOrder(result.logLines, [
-      "mock-server:serve",
-      "tlsnotary:notary",
-      "tlsnotary:prover",
       "poc:extract",
       "poc:prove",
       "poc:verify",

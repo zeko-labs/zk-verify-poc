@@ -13,7 +13,7 @@ Status legend: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`
 ## Active Pointer
 - `NEXT_TASK_ID`: `NONE`
 - Current owner status: `DONE`
-- Resume location: `Queue complete; monitor for new tasks`.
+- Resume location: Awaiting next scoped task from user.
 
 ## Verified Baseline (Already Green)
 - [x] `DONE` `T-001` Fresh repo initialized and core structure created.
@@ -161,3 +161,89 @@ Evidence log:
 - GREEN: `rg -n "Where The zkApp Is Deployed|From Scratch Deployment Workflow" README.md` passed.
 - GREEN: `rg -n "moon run poc:deploy|moon run workspace:run|moon run poc:verify-chain" README.md` passed.
 - GREEN: `moon run workspace:validate` passed after docs update; baseline remained green.
+
+### `T-207` Scoped security/remediation pass (excluding PRD-listed PoC limitations)
+Status: `DONE`
+Goal: fix all validated issues that are not listed as PoC limitations in `PRD.md`, while preserving the declared limitation that transcript-level selective disclosure binding is out-of-scope for this PoC cycle.
+
+Out-of-scope by PRD limitation:
+- [x] Do not implement full transcript byte-range binding / presentation-merkle integration in this task.
+
+RED checklist:
+- [x] Add failing tests for contract proof-input enforcement (`recordVerification` must verify typed proof).
+- [x] Add failing tests for trusted notary key enforcement and verifier-visible policy parameters.
+- [x] Add failing tests for prover CRLF sanitization.
+- [x] Add failing tests for `run-poc.sh` readiness polling (replace fixed sleeps).
+- [x] Add failing docs check for hardcoded absolute install/refresh paths in `.agents/skills/README.md`.
+
+GREEN checklist:
+- [x] Implement contract method proof verification and update settle flow.
+- [x] Implement circuit/prover constraints for trusted key + non-private policy assumptions and remove `any` circuit argument types.
+- [x] Implement CRLF sanitization in TLSNotary prover env handling.
+- [x] Implement service readiness polling in `run-poc.sh`.
+- [x] Replace hardcoded absolute install/refresh paths with portable variables.
+- [x] Update `README.md` and `PRD.md` clarifying implemented fixes vs PoC limitations.
+- [x] Run full validation and runtime pipeline gates.
+
+Evidence log:
+- RED: `moon run poc:test` failed in new `poc/tests/security-contract.spec.ts` because `VerificationRegistry.recordVerification` still accepts `[Field, Field]` and the eligibility circuit still exposes notary key/policy as prover-controlled private inputs.
+- RED: `moon run poc:test` failed in new `poc/tests/prove-input.spec.ts` because `validateProofInputIntegrity` accepted a valid signature under an untrusted notary key.
+- RED: `moon run poc:test` failed in new `poc/tests/run-poc.spec.ts` because `run-poc.sh` still uses fixed sleeps and does not define readiness polling helper `wait_for_tcp`.
+- RED: `moon run poc:test` failed in new `poc/tests/skills-readme.spec.ts` because `.agents/skills/README.md` still documents hardcoded `/Users/hebilicious/...` absolute paths.
+- RED: `moon run tlsnotary:test` failed because `sanitize_http_path` / `sanitize_http_host_header_value` do not exist yet for CRLF-safe request input handling.
+- GREEN: updated `poc/contracts/VerificationRegistry.ts` to accept `EligibilityProof`, call `proof.verify()`, and derive `result` from `proof.publicOutput`; updated `poc/settle.ts` and `poc/deploy.ts` to compile the eligibility program and use typed proof submission.
+- GREEN: refactored `poc/circuits/eligibility.ts` to remove prover-controlled key/policy private inputs, pin trusted notary public key constants, and replace `any` method args with concrete `EcdsaSignature` / `SessionHeaderBytes` types.
+- GREEN: added fixed security configuration in `poc/lib/poc-security-config.ts` and enforced trusted key/session-header checks in `poc/lib/prove-input.ts`; `moon run poc:test` now passes with new security and portability tests.
+- GREEN: implemented CRLF sanitizers in `tlsnotary/src/lib.rs` and wired them into `tlsnotary/src/bin/prover.rs`; `moon run tlsnotary:test` now passes.
+- GREEN: patched `run-poc.sh` to replace fixed startup sleeps with active readiness checks (TCP polling for mock server + LISTEN-port polling for one-shot notary), added explicit skip hook for smoke tests, and updated `.agents/skills/README.md` to portable `$HOME`/`$(pwd)` paths.
+- GREEN: updated `README.md` and `PRD.md` to clarify implemented hardening guarantees and explicitly preserve transcript byte-range binding as a declared PoC limitation.
+- GREEN: updated `poc/deploy.ts` to handle existing zkApp verification-key upgrades in-place when contract verification key hash changes.
+- GREEN: `moon run mock-server:test`, `moon run poc:test`, `moon run tlsnotary:test`, and `moon run workspace:test` passed.
+- GREEN: `moon run workspace:validate` initially failed on `poc:format` for updated files, then passed after `moon run poc:format-write`.
+- GREEN: `moon run poc:deploy` passed and updated on-chain verification key hash to match current contract build.
+- GREEN: `moon run workspace:run` initially failed due notary readiness probe consuming the single accepted connection (fixed by LISTEN-port readiness strategy), then passed end-to-end with settlement tx `5JtgdDrRx2HWDTmnvC4N7JX8bTsSRFKAtSzXqtuHn7MHBj3BTUNU`.
+
+### `T-208` Output directory consistency
+Status: `DONE`
+Goal: ensure artifacts are written to a consistent output location contract across standalone stages and workspace runner flows.
+
+RED checklist:
+- [x] Add failing test for default output path contract (`output/latest` when `OUTPUT_DIR` is unset).
+- [x] Add failing docs check that README explicitly documents output path behavior.
+
+GREEN checklist:
+- [x] Implement output path default consistency in shared path utility.
+- [x] Update script logging to print concrete artifact paths from runtime constants.
+- [x] Update `README.md` to document timestamped run output and standalone default output behavior.
+- [x] Re-run required tests/validation.
+
+Evidence log:
+- RED: `moon run poc:test` failed in new `poc/tests/paths.spec.ts` because `outputDir()` currently defaults to `output` instead of `output/latest` when `OUTPUT_DIR` is unset.
+- RED: `moon run poc:test` failed in new `poc/tests/readme-output.spec.ts` because `README.md` does not yet document `output/latest` default behavior for standalone stage commands.
+- GREEN: updated `poc/lib/paths.ts` so `outputDir()` now defaults to `output/latest`; `moon run poc:test` passes with `poc/tests/paths.spec.ts`.
+- GREEN: updated `poc/extract-fields.ts` and `poc/prove.ts` logs to print resolved artifact paths from runtime constants.
+- GREEN: updated `tlsnotary/src/bin/prover.rs` default standalone output base from `../output` to `../output/latest` for consistency with TS stage defaults.
+- GREEN: updated `README.md` output section to explicitly cover both `output/<timestamp>/` (runner) and `output/latest/` (standalone stages).
+- GREEN: `moon run workspace:validate` passed after formatting fix (`moon run poc:format-write`) with `poc:test` at 29/29 passing tests.
+- GREEN: `moon run workspace:run` passed end-to-end with settlement tx `5JvCAbtHQtqiRARQzzDpvKaUPv3GUD8Jcn2tsUiUyDb62MYJtLhM`.
+
+### `T-209` Revert empty-dir automation and adopt moon server presets
+Status: `DONE`
+Goal: remove automated empty timestamp directory pruning/test coverage and switch server tasks to moon `preset: server`.
+
+RED checklist:
+- [x] Add/adjust tests to capture desired simplified behavior after removing empty-dir automation coverage.
+
+GREEN checklist:
+- [x] Remove empty-dir pruning logic and empty-dir smoke tests/docs/tasklist references.
+- [x] Configure all server tasks to use moon `preset: server`.
+- [x] Re-run relevant validation/tests and runtime orchestration command(s).
+
+Evidence log:
+- RED: adjusted `poc/tests/run-poc.spec.ts` to remove empty-dir lifecycle assertions and keep orchestration/diagnostics coverage only.
+- GREEN: removed empty-dir automation from `run-poc.sh` (no auto-prune/auto-delete behavior), and removed empty-dir behavior references from `README.md` and `TASKLIST.md` `T-208`.
+- GREEN: updated server tasks to moon `preset: server` in `mock-server/moon.yml` (`serve`) and `tlsnotary/moon.yml` (`notary`).
+- GREEN: manually cleared current empty timestamp output directories via `find output -mindepth 1 -maxdepth 1 -type d -empty -exec rmdir {} +`.
+- GREEN: `moon run poc:test` passed (27/27 tests).
+- GREEN: `moon run workspace:validate` passed.
+- GREEN: `moon run workspace:run` passed end-to-end with settlement tx `5Ju2eVFRVkru9mXB8caB1Vq4o75vqAY9cs1q8EjQnKXxUfzq1BRV`.

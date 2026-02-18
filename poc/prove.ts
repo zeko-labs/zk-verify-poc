@@ -1,13 +1,18 @@
 import { Field, UInt64 } from "o1js";
 
-import { createEligibilityProgram } from "./circuits/eligibility.js";
+import { EcdsaSignature, EligibilityProgram, SessionHeaderBytes } from "./circuits/eligibility.js";
 import {
   assertEligibilityPolicy,
   hexToBigInt,
   type DisclosedFieldsProofInput,
   validateProofInputIntegrity,
 } from "./lib/prove-input.js";
-import { hashUtf8StringPoseidon } from "./lib/poseidon.js";
+import {
+  CURRENT_DATE_UNIX_MS,
+  MIN_SALARY,
+  MIN_TENURE_MONTHS,
+  SESSION_HEADER_LENGTH_BYTES,
+} from "./lib/poc-security-config.js";
 import { readJsonFile, writeJsonFile } from "./lib/io.js";
 import { outputDir } from "./lib/paths.js";
 
@@ -15,55 +20,37 @@ const DISCLOSED_PATH = `${outputDir()}/disclosed-fields.json`;
 const PROOF_PATH = `${outputDir()}/proof.json`;
 const VK_PATH = `${outputDir()}/verification-key.json`;
 
-const MIN_SALARY = 50_000;
-const MIN_TENURE_MONTHS = 12;
-const CURRENT_DATE_UNIX_MS = Date.UTC(2026, 1, 18);
-
 async function main(): Promise<void> {
   const disclosedRaw = await readJsonFile<DisclosedFieldsProofInput>(DISCLOSED_PATH);
   const disclosed = validateProofInputIntegrity(disclosedRaw);
-  const requiredStatusHash = hashUtf8StringPoseidon("active");
-
-  assertEligibilityPolicy(disclosed, {
-    minSalary: MIN_SALARY,
-    minTenureMonths: MIN_TENURE_MONTHS,
-    currentDateUnixMs: CURRENT_DATE_UNIX_MS,
-    requiredStatusHash: requiredStatusHash.toString(),
-  });
-
-  const headerLength = disclosed.session_header_bytes.length / 2;
-  const { Program, SignatureType, PublicKeyType, SessionHeaderType } =
-    createEligibilityProgram(headerLength);
+  assertEligibilityPolicy(disclosed);
 
   console.log("[prove] Compiling circuit...");
-  const { verificationKey } = await Program.compile();
+  const { verificationKey } = await EligibilityProgram.compile();
 
-  const signature = new SignatureType({
+  const signature = new EcdsaSignature({
     r: hexToBigInt(disclosed.ecdsa_signature.r),
     s: hexToBigInt(disclosed.ecdsa_signature.s),
   });
 
-  const publicKey = new PublicKeyType({
-    x: hexToBigInt(disclosed.notary_public_key.x),
-    y: hexToBigInt(disclosed.notary_public_key.y),
-  });
+  const headerLength = disclosed.session_header_bytes.length / 2;
+  if (headerLength !== SESSION_HEADER_LENGTH_BYTES) {
+    throw new Error(
+      `session header length ${headerLength} does not match required length ${SESSION_HEADER_LENGTH_BYTES}`,
+    );
+  }
 
-  const { proof } = await Program.verifyEligibility(
+  const { proof } = await EligibilityProgram.verifyEligibility(
     Field(disclosed.data_commitment),
     UInt64.from(disclosed.salary),
     UInt64.from(disclosed.hire_date_unix),
     Field(disclosed.status_hash),
     signature,
-    publicKey,
-    SessionHeaderType.fromHex(disclosed.session_header_bytes),
-    UInt64.from(MIN_SALARY),
-    UInt64.from(MIN_TENURE_MONTHS),
-    UInt64.from(CURRENT_DATE_UNIX_MS),
-    requiredStatusHash,
+    SessionHeaderBytes.fromHex(disclosed.session_header_bytes),
   );
 
   await writeJsonFile(PROOF_PATH, {
-    session_header_length_bytes: headerLength,
+    session_header_length_bytes: SESSION_HEADER_LENGTH_BYTES,
     min_salary: MIN_SALARY,
     min_tenure_months: MIN_TENURE_MONTHS,
     current_date_unix_ms: CURRENT_DATE_UNIX_MS,
@@ -73,11 +60,11 @@ async function main(): Promise<void> {
   await writeJsonFile(VK_PATH, {
     data: verificationKey.data,
     hash: verificationKey.hash.toString(),
-    session_header_length_bytes: headerLength,
+    session_header_length_bytes: SESSION_HEADER_LENGTH_BYTES,
   });
 
-  console.log("[prove] Saved output/proof.json");
-  console.log("[prove] Saved output/verification-key.json");
+  console.log(`[prove] Saved ${PROOF_PATH}`);
+  console.log(`[prove] Saved ${VK_PATH}`);
 }
 
 main().catch((error: unknown) => {

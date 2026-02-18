@@ -32,10 +32,47 @@ pub fn required_env(name: &str) -> Result<String> {
     std::env::var(name).map_err(|_| anyhow!("missing required env var: {name}"))
 }
 
+pub fn sanitize_http_path(value: &str) -> Result<String> {
+    if value.contains('\r') || value.contains('\n') {
+        return Err(anyhow!("TLSN_ENDPOINT must not contain CRLF characters"));
+    }
+    if !value.starts_with('/') {
+        return Err(anyhow!("TLSN_ENDPOINT must start with '/'"));
+    }
+    if value.contains(' ') || value.contains('\t') {
+        return Err(anyhow!(
+            "TLSN_ENDPOINT must not contain whitespace characters"
+        ));
+    }
+
+    Ok(value.to_string())
+}
+
+pub fn sanitize_http_host_header_value(value: &str) -> Result<String> {
+    if value.contains('\r') || value.contains('\n') {
+        return Err(anyhow!(
+            "TLSN_SERVER_DOMAIN must not contain CRLF characters"
+        ));
+    }
+    if value.trim().is_empty() {
+        return Err(anyhow!("TLSN_SERVER_DOMAIN must be non-empty"));
+    }
+    if value.contains(' ') || value.contains('\t') {
+        return Err(anyhow!(
+            "TLSN_SERVER_DOMAIN must not contain whitespace characters"
+        ));
+    }
+
+    Ok(value.to_string())
+}
+
 #[cfg(test)]
 #[allow(non_snake_case)]
 mod tests {
-    use super::{parse_hex32, required_env, split_signature_64};
+    use super::{
+        parse_hex32, required_env, sanitize_http_host_header_value, sanitize_http_path,
+        split_signature_64,
+    };
 
     #[test]
     fn Given_valid_32_byte_hex_When_parsed_Then_array_is_returned() {
@@ -77,5 +114,17 @@ mod tests {
         if let Some(value) = previous {
             std::env::set_var(var_name, value);
         }
+    }
+
+    #[test]
+    fn Given_CRLF_in_endpoint_When_sanitized_Then_error_is_returned() {
+        let result = sanitize_http_path("/api/v1/employee/EMP-001\r\nX-Injected: 1");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn Given_CRLF_in_server_domain_When_sanitized_Then_error_is_returned() {
+        let result = sanitize_http_host_header_value("localhost\r\nX-Injected: 1");
+        assert!(result.is_err());
     }
 }

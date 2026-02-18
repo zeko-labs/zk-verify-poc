@@ -10,11 +10,80 @@ fi
 
 RUN_ID="$(date +%Y-%m-%dT%H-%M-%S)"
 export OUTPUT_DIR="$(pwd)/output/${RUN_ID}"
-mkdir -p "$OUTPUT_DIR"
 
-MOCK_SERVER_STARTUP_DELAY_SEC="${RUN_POC_MOCK_STARTUP_DELAY_SEC:-2}"
-NOTARY_STARTUP_DELAY_SEC="${RUN_POC_NOTARY_STARTUP_DELAY_SEC:-3}"
+SERVICE_READY_TIMEOUT_SEC="${RUN_POC_SERVICE_READY_TIMEOUT_SEC:-30}"
+SERVICE_READY_POLL_INTERVAL_SEC="${RUN_POC_SERVICE_READY_POLL_INTERVAL_SEC:-1}"
+SKIP_READY_CHECK="${RUN_POC_SKIP_READY_CHECK:-0}"
+MOCK_SERVER_HOST="${TLSN_SERVER_HOST:-127.0.0.1}"
+MOCK_SERVER_PORT="${TLSN_SERVER_PORT:-4443}"
+NOTARY_HOST="${TLSN_NOTARY_HOST:-127.0.0.1}"
+NOTARY_PORT="${TLSN_NOTARY_PORT:-7047}"
 CURRENT_STEP="bootstrap"
+
+wait_for_tcp() {
+  local host=$1
+  local port=$2
+  local label=$3
+
+  if [ "$SKIP_READY_CHECK" = "1" ]; then
+    echo "[run-poc] skipping readiness check for ${label} (${host}:${port})"
+    sleep 0.1
+    return 0
+  fi
+
+  local deadline=$((SECONDS + SERVICE_READY_TIMEOUT_SEC))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if (echo >"/dev/tcp/${host}/${port}") >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$SERVICE_READY_POLL_INTERVAL_SEC"
+  done
+
+  echo "[run-poc] ${label} did not become ready on ${host}:${port} within ${SERVICE_READY_TIMEOUT_SEC}s" >&2
+  return 1
+}
+
+is_port_listening() {
+  local port=$1
+
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v netstat >/dev/null 2>&1; then
+    netstat -an 2>/dev/null | grep -Eq "[\\.:]${port}[[:space:]].*LISTEN"
+    return $?
+  fi
+
+  return 1
+}
+
+wait_for_listen_port() {
+  local port=$1
+  local label=$2
+
+  if [ "$SKIP_READY_CHECK" = "1" ]; then
+    echo "[run-poc] skipping readiness check for ${label} (listen port ${port})"
+    sleep 0.1
+    return 0
+  fi
+
+  local deadline=$((SECONDS + SERVICE_READY_TIMEOUT_SEC))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if is_port_listening "$port"; then
+      return 0
+    fi
+    if [ -n "${NOTARY_PID:-}" ] && ! kill -0 "$NOTARY_PID" 2>/dev/null; then
+      echo "[run-poc] ${label} exited before opening listen port ${port}" >&2
+      return 1
+    fi
+    sleep "$SERVICE_READY_POLL_INTERVAL_SEC"
+  done
+
+  echo "[run-poc] ${label} did not open listen port ${port} within ${SERVICE_READY_TIMEOUT_SEC}s" >&2
+  return 1
+}
 
 cleanup() {
   local exit_code=$?
@@ -53,15 +122,15 @@ echo "[1/7] Starting mock employer HTTPS server (TLS 1.2)..."
 CURRENT_STEP="mock-server:serve"
 moon run mock-server:serve &
 MOCK_PID=$!
-sleep "$MOCK_SERVER_STARTUP_DELAY_SEC"
-echo "       -> Listening on https://localhost:4443"
+wait_for_tcp "$MOCK_SERVER_HOST" "$MOCK_SERVER_PORT" "mock-server:serve"
+echo "       -> Listening on https://${MOCK_SERVER_HOST}:${MOCK_SERVER_PORT}"
 echo ""
 
 echo "[2/7] Running TLSNotary attestation..."
 CURRENT_STEP="tlsnotary:notary"
 moon run tlsnotary:notary &
 NOTARY_PID=$!
-sleep "$NOTARY_STARTUP_DELAY_SEC"
+wait_for_listen_port "$NOTARY_PORT" "tlsnotary:notary"
 CURRENT_STEP="tlsnotary:prover"
 moon run tlsnotary:prover
 echo "       -> Saved: ${OUTPUT_DIR}/attestation.json"

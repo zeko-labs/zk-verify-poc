@@ -25,6 +25,10 @@ These requirements were provided after the initial PRD and are now treated as bi
 - Keep continuation state in `README.md`, `PRD.md`, and `TASKLIST.md` (no separate handoff file).
 - Validate TypeScript with Microsoft TypeScript Go (`tsgo`) and enforce lint/format with `oxlint`/`oxfmt`.
 
+Security scope clarifications for this PoC:
+- This PoC intentionally does not implement full transcript byte-range inclusion proofs for disclosed business fields. That limitation is expected and remains out-of-scope for the PoC acceptance boundary.
+- Even with that limitation, implement all non-limitation hardening items discovered during review (for example: trusted notary key pinning, verifier-visible/fixed policy constraints, in-contract proof verification, request sanitization, and startup readiness reliability).
+
 ---
 
 ## 1. What We're Building and Why
@@ -395,7 +399,7 @@ This script bridges TLSNotary's output (arbitrary JSON) to o1js circuit inputs (
 }
 ```
 
-**Note on selective disclosure:** In the full product, selective disclosure happens at the byte-range level within TLSNotary's protocol (reveal specific byte ranges of the encrypted response). For this PoC, we skip that complexity and simply parse the full JSON response. The TLSNotary attestation still provides the trust anchor via the ECDSA signature over the session header — we just don't demonstrate fine-grained redaction.
+**Note on selective disclosure:** In the full product, selective disclosure happens at the byte-range level within TLSNotary's protocol (reveal specific byte ranges of the encrypted response). For this PoC, we skip that complexity and simply parse the full JSON response. The TLSNotary attestation still provides the trust anchor via the ECDSA signature over the session header, but this PoC does not yet prove transcript-range inclusion for each disclosed field inside the o1js circuit. Treat that as an explicit PoC limitation and a required post-PoC hardening step.
 
 ---
 
@@ -413,7 +417,7 @@ poc/prove.ts                   — script that compiles the circuit and generate
 
 The ZkProgram performs two verification steps in a single proof:
 
-**Step A — Attestation Verification:** Verify the Notary's ECDSA/secp256k1 signature over the session header. This proves the data came from a legitimate TLS session witnessed by the Notary.
+**Step A — Attestation Verification:** Verify the Notary's ECDSA/secp256k1 signature over the session header using a trusted, pinned Notary public key.
 
 **Step B — Eligibility Check:** Verify that the attested employment data satisfies the business rules (salary >= threshold, tenure >= minimum months, status == active).
 
@@ -503,10 +507,12 @@ const EligibilityProgram = ZkProgram({
 1. **ECDSA verification is expensive.** Expect ~30,000 constraints for the signature verification alone. Combined with Poseidon hashing and UInt64 comparisons, total proof generation time will likely be 60-120 seconds.
 
 2. **The `Bytes(N)` class must match the exact session header length.** After step 2 (TLSNotary attestation), inspect the session header byte length and hardcode it. o1js circuits are static — the size must be known at compile time.
+3. **Use a trusted notary key anchor.** Do not allow the prover to choose the notary key as an unconstrained private input.
+4. **Rule parameters must be verifier-visible or fixed.** Do not accept prover-chosen private rule thresholds.
 
-3. **Signature encoding must match exactly.** o1js's `createEcdsa` expects the signature in a specific format. TLSNotary may produce DER-encoded signatures or raw (r, s) bigints. A conversion may be necessary in `extract-fields.ts`.
+5. **Signature encoding must match exactly.** o1js's `createEcdsa` expects the signature in a specific format. TLSNotary may produce DER-encoded signatures or raw (r, s) bigints. A conversion may be necessary in `extract-fields.ts`.
 
-4. **The "message" that was signed matters.** o1js's ECDSA verify internally hashes the message. Check whether TLSNotary signs the raw session header bytes or a SHA-256 hash of them. If TLSNotary signs `SHA256(session_header)`, you may need to pass the pre-hashed value and use the appropriate verify method.
+6. **The "message" that was signed matters.** o1js's ECDSA verify internally hashes the message. Check whether TLSNotary signs the raw session header bytes or a SHA-256 hash of them. If TLSNotary signs `SHA256(session_header)`, you may need to pass the pre-hashed value and use the appropriate verify method.
 
 #### prove.ts Script
 

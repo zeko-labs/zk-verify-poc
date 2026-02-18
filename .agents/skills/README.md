@@ -8,10 +8,10 @@ Installed skills:
 
 Install/refresh command:
 ```bash
-python3 /Users/hebilicious/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+python3 "$HOME/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
   --repo hyperb1iss/moonrepo-skill \
   --path skills/proto skills/moon \
-  --dest /Users/hebilicious/GitHub/zkverify-poc/.agents/skills
+  --dest "$(pwd)/.agents/skills"
 ```
 
 After installing or refreshing skills, restart Codex.

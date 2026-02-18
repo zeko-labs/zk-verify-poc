@@ -11,82 +11,73 @@ import {
   createForeignCurve,
 } from "o1js";
 
-export const THIRTY_DAYS_MS_U64 = UInt64.from(2_592_000_000);
+import {
+  CURRENT_DATE_UNIX_MS,
+  MIN_SALARY,
+  MIN_TENURE_MONTHS,
+  REQUIRED_EMPLOYMENT_STATUS,
+  SESSION_HEADER_LENGTH_BYTES,
+  TRUSTED_NOTARY_PUBLIC_KEY_X_HEX,
+  TRUSTED_NOTARY_PUBLIC_KEY_Y_HEX,
+} from "../lib/poc-security-config.js";
+import { hashUtf8StringPoseidon } from "../lib/poseidon.js";
 
-export interface EligibilityProgramBundle {
-  Program: any;
-  SignatureType: any;
-  PublicKeyType: any;
-  SessionHeaderType: any;
+export const THIRTY_DAYS_MS_U64 = UInt64.from(2_592_000_000);
+export const REQUIRED_STATUS_HASH = hashUtf8StringPoseidon(REQUIRED_EMPLOYMENT_STATUS);
+
+const MIN_SALARY_U64 = UInt64.from(MIN_SALARY);
+const MIN_TENURE_MONTHS_U64 = UInt64.from(MIN_TENURE_MONTHS);
+const CURRENT_DATE_UNIX_U64 = UInt64.from(CURRENT_DATE_UNIX_MS);
+
+function hexToBigInt(value: string): bigint {
+  return BigInt(`0x${value}`);
 }
 
-export function createEligibilityProgram(sessionHeaderLength: number): EligibilityProgramBundle {
-  if (!Number.isInteger(sessionHeaderLength) || sessionHeaderLength <= 0) {
-    throw new Error(`invalid session header length: ${sessionHeaderLength}`);
-  }
+export class Secp256k1 extends createForeignCurve(Crypto.CurveParams.Secp256k1) {}
+export class EcdsaSignature extends createEcdsa(Secp256k1) {}
+export class SessionHeaderBytes extends Bytes(SESSION_HEADER_LENGTH_BYTES) {}
 
-  class Secp256k1 extends createForeignCurve(Crypto.CurveParams.Secp256k1) {}
-  class EcdsaSignature extends createEcdsa(Secp256k1) {}
-  class SessionHeaderBytes extends Bytes(sessionHeaderLength) {}
+const trustedNotaryPublicKey = new Secp256k1({
+  x: hexToBigInt(TRUSTED_NOTARY_PUBLIC_KEY_X_HEX),
+  y: hexToBigInt(TRUSTED_NOTARY_PUBLIC_KEY_Y_HEX),
+});
 
-  const Program = ZkProgram({
-    name: `employment-eligibility-${sessionHeaderLength}`,
-    publicInput: Field,
-    publicOutput: Bool,
-    methods: {
-      verifyEligibility: {
-        privateInputs: [
-          UInt64,
-          UInt64,
-          Field,
-          EcdsaSignature,
-          Secp256k1,
-          SessionHeaderBytes,
-          UInt64,
-          UInt64,
-          UInt64,
-          Field,
-        ],
-        async method(
-          dataCommitment: Field,
-          salary: UInt64,
-          hireDateUnix: UInt64,
-          statusHash: Field,
-          signature: any,
-          notaryPublicKey: any,
-          sessionHeader: any,
-          minSalary: UInt64,
-          minTenureMonths: UInt64,
-          currentDateUnix: UInt64,
-          requiredStatusHash: Field,
-        ) {
-          const computedDataCommitment = Poseidon.hash([
-            salary.value,
-            hireDateUnix.value,
-            statusHash,
-          ]);
-          computedDataCommitment.assertEquals(dataCommitment);
+export const EligibilityProgram = ZkProgram({
+  name: "employment-eligibility",
+  publicInput: Field,
+  publicOutput: Bool,
+  methods: {
+    verifyEligibility: {
+      privateInputs: [UInt64, UInt64, Field, EcdsaSignature, SessionHeaderBytes],
+      async method(
+        dataCommitment: Field,
+        salary: UInt64,
+        hireDateUnix: UInt64,
+        statusHash: Field,
+        signature: EcdsaSignature,
+        sessionHeader: SessionHeaderBytes,
+      ) {
+        const computedDataCommitment = Poseidon.hash([
+          salary.value,
+          hireDateUnix.value,
+          statusHash,
+        ]);
+        computedDataCommitment.assertEquals(dataCommitment);
 
-          const signedMessageHash = Hash.SHA2_256.hash(sessionHeader);
-          signature.verifySignedHash(signedMessageHash, notaryPublicKey).assertTrue();
+        const signedMessageHash = Hash.SHA2_256.hash(sessionHeader);
+        signature.verifySignedHash(signedMessageHash, trustedNotaryPublicKey).assertTrue();
 
-          statusHash.assertEquals(requiredStatusHash);
-          salary.assertGreaterThanOrEqual(minSalary);
+        statusHash.assertEquals(REQUIRED_STATUS_HASH);
+        salary.assertGreaterThanOrEqual(MIN_SALARY_U64);
 
-          const tenureMs = currentDateUnix.sub(hireDateUnix);
-          const tenureMonths = tenureMs.div(THIRTY_DAYS_MS_U64);
-          tenureMonths.assertGreaterThanOrEqual(minTenureMonths);
+        const tenureMs = CURRENT_DATE_UNIX_U64.sub(hireDateUnix);
+        const tenureMonths = tenureMs.div(THIRTY_DAYS_MS_U64);
+        tenureMonths.assertGreaterThanOrEqual(MIN_TENURE_MONTHS_U64);
 
-          return { publicOutput: Bool(true) };
-        },
+        return { publicOutput: Bool(true) };
       },
     },
-  });
+  },
+});
 
-  return {
-    Program,
-    SignatureType: EcdsaSignature,
-    PublicKeyType: Secp256k1,
-    SessionHeaderType: SessionHeaderBytes,
-  };
-}
+export class EligibilityProof extends ZkProgram.Proof(EligibilityProgram) {}

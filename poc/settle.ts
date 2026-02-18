@@ -1,5 +1,6 @@
 import { Field, Mina, Poseidon, PrivateKey, PublicKey, fetchAccount } from "o1js";
 
+import { EligibilityProgram, EligibilityProof } from "./circuits/eligibility.js";
 import { VerificationRegistry } from "./contracts/VerificationRegistry.js";
 import { loadRuntimeEnv } from "./lib/env.js";
 import { readJsonFile } from "./lib/io.js";
@@ -12,7 +13,10 @@ const MAX_NONCE_POLL_ATTEMPTS = 30;
 
 interface StoredProof {
   proof: {
+    publicInput: string[];
     publicOutput: string[];
+    maxProofsVerified: 0 | 1 | 2;
+    proof: string;
   };
 }
 
@@ -74,18 +78,20 @@ async function main(): Promise<void> {
   }
 
   const storedProof = await readJsonFile<StoredProof>(PROOF_PATH);
+  const eligibilityProof = await EligibilityProof.fromJSON(storedProof.proof);
 
+  console.log("[settle] Compiling EligibilityProgram...");
+  await EligibilityProgram.compile();
   console.log("[settle] Compiling VerificationRegistry contract...");
   await VerificationRegistry.compile();
 
   const registry = new VerificationRegistry(PublicKey.fromBase58(zkAppAddress));
   const proofHash = proofHashFromJson(storedProof.proof);
-  const result = storedProof.proof.publicOutput[0] === "1" ? Field(1) : Field(0);
 
   const tx = await Mina.transaction(
     { sender: feePayerPublicKey, fee: TX_FEE, nonce: feePayerNonceBefore },
     async () => {
-      await registry.recordVerification(proofHash, result);
+      await registry.recordVerification(proofHash, eligibilityProof);
     },
   );
 

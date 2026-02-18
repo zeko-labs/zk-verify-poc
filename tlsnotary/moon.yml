@@ -9,6 +9,7 @@ tasks:
     command: 'cargo test --manifest-path Cargo.toml'
   notary:
     command: 'cargo run --manifest-path Cargo.toml --bin notary'
+    preset: 'server'
     options:
       cache: false
   prover:

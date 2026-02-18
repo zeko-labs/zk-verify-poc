@@ -1,0 +1,11 @@
+export const SESSION_HEADER_LENGTH_BYTES = 54;
+
+export const MIN_SALARY = 50_000;
+export const MIN_TENURE_MONTHS = 12;
+export const CURRENT_DATE_UNIX_MS = Date.UTC(2026, 1, 18);
+export const REQUIRED_EMPLOYMENT_STATUS = "active";
+
+export const TRUSTED_NOTARY_PUBLIC_KEY_X_HEX =
+  "fac7d8ab2d097d429f572a77ce324add36ccad426425b68cd54777b6f261ca14";
+export const TRUSTED_NOTARY_PUBLIC_KEY_Y_HEX =
+  "0f0e1b6a6998bc97e853edd33c919ff3028b9cc1da02bd7236079e74847ba0b2";

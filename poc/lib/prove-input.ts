@@ -1,7 +1,16 @@
 import { Bytes, Crypto, Field, Hash, createEcdsa, createForeignCurve } from "o1js";
 
 import { tenureMonthsFromUnixMs } from "./eligibility.js";
-import { commitmentHash } from "./poseidon.js";
+import {
+  CURRENT_DATE_UNIX_MS,
+  MIN_SALARY,
+  MIN_TENURE_MONTHS,
+  REQUIRED_EMPLOYMENT_STATUS,
+  SESSION_HEADER_LENGTH_BYTES,
+  TRUSTED_NOTARY_PUBLIC_KEY_X_HEX,
+  TRUSTED_NOTARY_PUBLIC_KEY_Y_HEX,
+} from "./poc-security-config.js";
+import { commitmentHash, hashUtf8StringPoseidon } from "./poseidon.js";
 
 export interface DisclosedFieldsProofInput {
   salary: number;
@@ -17,13 +26,6 @@ export interface DisclosedFieldsProofInput {
     x: string;
     y: string;
   };
-}
-
-export interface EligibilityPolicy {
-  minSalary: number;
-  minTenureMonths: number;
-  currentDateUnixMs: number;
-  requiredStatusHash: string;
 }
 
 class Secp256k1 extends createForeignCurve(Crypto.CurveParams.Secp256k1) {}
@@ -97,6 +99,24 @@ function verifySignature(disclosed: DisclosedFieldsProofInput): void {
   }
 }
 
+function assertTrustedNotaryPublicKey(disclosed: DisclosedFieldsProofInput): void {
+  if (
+    disclosed.notary_public_key.x !== TRUSTED_NOTARY_PUBLIC_KEY_X_HEX ||
+    disclosed.notary_public_key.y !== TRUSTED_NOTARY_PUBLIC_KEY_Y_HEX
+  ) {
+    throw new Error("notary public key does not match trusted key");
+  }
+}
+
+function assertSessionHeaderLength(disclosed: DisclosedFieldsProofInput): void {
+  const sessionHeaderLengthBytes = disclosed.session_header_bytes.length / 2;
+  if (sessionHeaderLengthBytes !== SESSION_HEADER_LENGTH_BYTES) {
+    throw new Error(
+      `session header length ${sessionHeaderLengthBytes} does not match required length ${SESSION_HEADER_LENGTH_BYTES}`,
+    );
+  }
+}
+
 export function validateProofInputIntegrity(
   input: DisclosedFieldsProofInput,
 ): DisclosedFieldsProofInput {
@@ -127,27 +147,22 @@ export function validateProofInputIntegrity(
     throw new Error("data commitment does not match disclosed salary/hire_date/status values");
   }
 
+  assertSessionHeaderLength(normalized);
+  assertTrustedNotaryPublicKey(normalized);
   verifySignature(normalized);
 
   return normalized;
 }
 
-export function assertEligibilityPolicy(
-  disclosed: DisclosedFieldsProofInput,
-  policy: EligibilityPolicy,
-): void {
-  const minSalary = requireSafeInteger(policy.minSalary, "minSalary");
-  const minTenureMonths = requireSafeInteger(policy.minTenureMonths, "minTenureMonths");
-  const currentDateUnixMs = requireSafeInteger(policy.currentDateUnixMs, "currentDateUnixMs");
-  const requiredStatusHash = requireFieldString(policy.requiredStatusHash, "requiredStatusHash");
-
-  if (disclosed.salary < minSalary) {
-    throw new Error(`salary ${disclosed.salary} is below required minimum ${minSalary}`);
+export function assertEligibilityPolicy(disclosed: DisclosedFieldsProofInput): void {
+  const requiredStatusHash = hashUtf8StringPoseidon(REQUIRED_EMPLOYMENT_STATUS).toString();
+  if (disclosed.salary < MIN_SALARY) {
+    throw new Error(`salary ${disclosed.salary} is below required minimum ${MIN_SALARY}`);
   }
 
-  const tenureMonths = tenureMonthsFromUnixMs(disclosed.hire_date_unix, currentDateUnixMs);
-  if (tenureMonths < minTenureMonths) {
-    throw new Error(`tenure ${tenureMonths} months is below required minimum ${minTenureMonths}`);
+  const tenureMonths = tenureMonthsFromUnixMs(disclosed.hire_date_unix, CURRENT_DATE_UNIX_MS);
+  if (tenureMonths < MIN_TENURE_MONTHS) {
+    throw new Error(`tenure ${tenureMonths} months is below required minimum ${MIN_TENURE_MONTHS}`);
   }
 
   if (disclosed.status_hash !== requiredStatusHash) {

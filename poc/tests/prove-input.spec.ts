@@ -1,5 +1,3 @@
-import { createSign, generateKeyPairSync } from "node:crypto";
-
 import { describe, expect, it } from "vitest";
 
 import { assertEligibilityPolicy, validateProofInputIntegrity } from "../lib/prove-input.js";
@@ -21,110 +19,31 @@ interface DisclosedFieldsFixture {
   };
 }
 
-function base64urlToHex(value: string): string {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
-  return Buffer.from(padded, "base64").toString("hex");
-}
-
-function readDerLength(buffer: Buffer, offset: number): { length: number; nextOffset: number } {
-  const first = buffer[offset];
-  if (first < 0x80) {
-    return { length: first, nextOffset: offset + 1 };
-  }
-
-  const octets = first & 0x7f;
-  let value = 0;
-  for (let i = 0; i < octets; i += 1) {
-    value = (value << 8) | buffer[offset + 1 + i];
-  }
-
-  return { length: value, nextOffset: offset + 1 + octets };
-}
-
-function decodeCompactSignatureFromDer(der: Buffer): { rHex: string; sHex: string } {
-  let offset = 0;
-  if (der[offset] !== 0x30) {
-    throw new Error("invalid DER sequence tag");
-  }
-  offset += 1;
-  const seqLength = readDerLength(der, offset);
-  offset = seqLength.nextOffset;
-
-  const end = offset + seqLength.length;
-  if (der[offset] !== 0x02) {
-    throw new Error("invalid DER integer tag for r");
-  }
-  offset += 1;
-  const rLength = readDerLength(der, offset);
-  offset = rLength.nextOffset;
-  let r = der.subarray(offset, offset + rLength.length);
-  offset += rLength.length;
-
-  if (der[offset] !== 0x02) {
-    throw new Error("invalid DER integer tag for s");
-  }
-  offset += 1;
-  const sLength = readDerLength(der, offset);
-  offset = sLength.nextOffset;
-  let s = der.subarray(offset, offset + sLength.length);
-  offset += sLength.length;
-
-  if (offset !== end) {
-    throw new Error("invalid DER structure length");
-  }
-
-  while (r.length > 32 && r[0] === 0) {
-    r = r.subarray(1);
-  }
-  while (s.length > 32 && s[0] === 0) {
-    s = s.subarray(1);
-  }
-  if (r.length > 32 || s.length > 32) {
-    throw new Error("DER integer exceeds 32 bytes for secp256k1");
-  }
-
-  return {
-    rHex: r.toString("hex").padStart(64, "0"),
-    sHex: s.toString("hex").padStart(64, "0"),
-  };
-}
+const VALID_FIXTURE: DisclosedFieldsFixture = {
+  salary: 85_000,
+  hire_date_unix: 1_686_787_200_000,
+  status_hash: "425066975693549922141733679725481389722356036482752749067457786220237218985",
+  data_commitment: "1234357605213887681571516522283666890866308643784466339214911188889297492356",
+  ecdsa_signature: {
+    r: "10d2cd6d0473c33419478bf071c5b97a3f93f5e9b69db1102f0217c3cd3b3715",
+    s: "1d5d94fe820061e7f6f90a04147a1984294e397f999bc2850b7ef2f19c8853d8",
+  },
+  session_header_bytes:
+    "46825a9e1e4db04dea5516d0dffe7c4000000000022048e82c788b93ad9ea5fcb1d26a41842b429f88278727497e491e1987517da559",
+  notary_public_key: {
+    x: "fac7d8ab2d097d429f572a77ce324add36ccad426425b68cd54777b6f261ca14",
+    y: "0f0e1b6a6998bc97e853edd33c919ff3028b9cc1da02bd7236079e74847ba0b2",
+  },
+};
 
 function buildFixture(): DisclosedFieldsFixture {
-  const salary = 85_000;
-  const hireDateUnix = Date.UTC(2023, 5, 15);
-  const statusHash = hashUtf8StringPoseidon("active");
-  const dataCommitment = commitmentHash(salary, hireDateUnix, statusHash);
-  const sessionHeader = Buffer.from("zkverify-session-header", "utf8");
-
-  const { privateKey, publicKey } = generateKeyPairSync("ec", {
-    namedCurve: "secp256k1",
-  });
-
-  const signer = createSign("sha256");
-  signer.update(sessionHeader);
-  signer.end();
-  const signatureDer = signer.sign(privateKey);
-  const { rHex, sHex } = decodeCompactSignatureFromDer(signatureDer);
-
-  const jwk = publicKey.export({ format: "jwk" });
-  if (!jwk.x || !jwk.y) {
-    throw new Error("expected x/y coordinates in secp256k1 JWK export");
-  }
-
   return {
-    salary,
-    hire_date_unix: hireDateUnix,
-    status_hash: statusHash.toString(),
-    data_commitment: dataCommitment.toString(),
+    ...VALID_FIXTURE,
     ecdsa_signature: {
-      r: rHex,
-      s: sHex,
+      ...VALID_FIXTURE.ecdsa_signature,
     },
-    session_header_bytes: sessionHeader.toString("hex"),
     notary_public_key: {
-      x: base64urlToHex(jwk.x),
-      y: base64urlToHex(jwk.y),
+      ...VALID_FIXTURE.notary_public_key,
     },
   };
 }
@@ -132,6 +51,15 @@ function buildFixture(): DisclosedFieldsFixture {
 describe("prove input integrity", () => {
   it("Given valid disclosed fields When integrity is validated Then proving preflight passes", () => {
     const fixture = buildFixture();
+
+    const statusHash = hashUtf8StringPoseidon("active");
+    const recomputedCommitment = commitmentHash(
+      fixture.salary,
+      fixture.hire_date_unix,
+      statusHash,
+    ).toString();
+    expect(recomputedCommitment).toBe(fixture.data_commitment);
+
     expect(() => validateProofInputIntegrity(fixture)).not.toThrow();
   });
 
@@ -149,58 +77,48 @@ describe("prove input integrity", () => {
 
   it("Given salary below required threshold When eligibility policy is validated Then it fails with salary diagnostics", () => {
     const fixture = buildFixture();
-    const requiredStatusHash = hashUtf8StringPoseidon("active").toString();
 
     expect(() =>
-      assertEligibilityPolicy(
-        { ...fixture, salary: 49_999 },
-        {
-          minSalary: 50_000,
-          minTenureMonths: 12,
-          currentDateUnixMs: Date.UTC(2026, 1, 18),
-          requiredStatusHash,
-        },
-      ),
+      assertEligibilityPolicy({
+        ...fixture,
+        salary: 49_999,
+      }),
     ).toThrow(/salary .* below required minimum/i);
   });
 
   it("Given tenure below required threshold When eligibility policy is validated Then it fails with tenure diagnostics", () => {
     const fixture = buildFixture();
-    const requiredStatusHash = hashUtf8StringPoseidon("active").toString();
 
     expect(() =>
-      assertEligibilityPolicy(
-        {
-          ...fixture,
-          hire_date_unix: Date.UTC(2026, 1, 10),
-        },
-        {
-          minSalary: 50_000,
-          minTenureMonths: 12,
-          currentDateUnixMs: Date.UTC(2026, 1, 18),
-          requiredStatusHash,
-        },
-      ),
+      assertEligibilityPolicy({
+        ...fixture,
+        hire_date_unix: Date.UTC(2026, 1, 10),
+      }),
     ).toThrow(/tenure .* below required minimum/i);
   });
 
   it("Given status hash mismatch When eligibility policy is validated Then it fails with status diagnostics", () => {
     const fixture = buildFixture();
-    const requiredStatusHash = hashUtf8StringPoseidon("active").toString();
 
     expect(() =>
-      assertEligibilityPolicy(
-        {
-          ...fixture,
-          status_hash: hashUtf8StringPoseidon("inactive").toString(),
-        },
-        {
-          minSalary: 50_000,
-          minTenureMonths: 12,
-          currentDateUnixMs: Date.UTC(2026, 1, 18),
-          requiredStatusHash,
-        },
-      ),
+      assertEligibilityPolicy({
+        ...fixture,
+        status_hash: hashUtf8StringPoseidon("inactive").toString(),
+      }),
     ).toThrow(/status hash mismatch/i);
+  });
+
+  it("Given a valid signature under an untrusted key When integrity is validated Then it fails with trusted-key diagnostics", () => {
+    const fixture = buildFixture();
+
+    expect(() =>
+      validateProofInputIntegrity({
+        ...fixture,
+        notary_public_key: {
+          ...fixture.notary_public_key,
+          x: fixture.notary_public_key.x.slice(0, -1) + "f",
+        },
+      }),
+    ).toThrow(/notary public key does not match trusted key/i);
   });
 });

@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   console.log(
     `[extract-fields] Disclosed annual_salary=${disclosed.salary}, hire_date_unix=${disclosed.hire_date_unix}`,
   );
-  console.log("[extract-fields] Saved output/disclosed-fields.json");
+  console.log(`[extract-fields] Saved ${DISCLOSED_PATH}`);
 }
 
 main().catch((error: unknown) => {

@@ -31,7 +31,9 @@ use tlsn::{
 };
 use tlsn_formats::http::{DefaultHttpCommitter, HttpCommit, HttpTranscript};
 
-use zkverify_tlsnotary::split_signature_64;
+use zkverify_tlsnotary::{
+    sanitize_http_host_header_value, sanitize_http_path, split_signature_64,
+};
 
 const MAX_SENT_DATA: usize = 1 << 12;
 const MAX_RECV_DATA: usize = 1 << 14;
@@ -112,13 +114,16 @@ async fn main() -> Result<()> {
         .unwrap_or(7047);
 
     let server_host = std::env::var("TLSN_SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let server_domain = std::env::var("TLSN_SERVER_DOMAIN").unwrap_or_else(|_| "localhost".to_string());
+    let server_domain = sanitize_http_host_header_value(
+        &std::env::var("TLSN_SERVER_DOMAIN").unwrap_or_else(|_| "localhost".to_string()),
+    )?;
     let server_port = std::env::var("TLSN_SERVER_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(4443);
-    let endpoint = std::env::var("TLSN_ENDPOINT")
-        .unwrap_or_else(|_| "/api/v1/employee/EMP-001".to_string());
+    let endpoint = sanitize_http_path(
+        &std::env::var("TLSN_ENDPOINT").unwrap_or_else(|_| "/api/v1/employee/EMP-001".to_string()),
+    )?;
     let cert_path =
         std::env::var("TLSN_ROOT_CERT_PATH").unwrap_or_else(|_| "../mock-server/cert.pem".to_string());
 
@@ -282,7 +287,7 @@ async fn main() -> Result<()> {
     };
 
     let output_dir =
-        std::env::var("OUTPUT_DIR").unwrap_or_else(|_| "../output".to_string());
+        std::env::var("OUTPUT_DIR").unwrap_or_else(|_| "../output/latest".to_string());
     let output_file = format!("{output_dir}/attestation.json");
 
     tokio::fs::create_dir_all(&output_dir).await?;

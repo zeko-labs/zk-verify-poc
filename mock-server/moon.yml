@@ -5,6 +5,7 @@ language: "javascript"
 tasks:
   serve:
     command: "pnpm exec tsx mock-server/server.ts"
+    preset: "server"
     options:
       runFromWorkspaceRoot: true
       cache: false
