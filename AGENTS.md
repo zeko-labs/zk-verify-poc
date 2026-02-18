@@ -45,17 +45,6 @@ Use this map before editing so the right files are touched first:
 - Keep one explicit active pointer (`NEXT_TASK_ID`) in `TASKLIST.md` at all times.
 - Remove stale status docs instead of adding parallel trackers.
 
-## Required Local Skills
-The following skills must be installed locally and used when relevant:
-- `proto` skill
-- `moon` skill
-
-Expected repo-local paths:
-- `.agents/skills/proto`
-- `.agents/skills/moon`
-
-If either skill is missing, add a `BLOCKED` item in `TASKLIST.md` and resolve before proceeding.
-
 ## Toolchain and Quality Gates
 - Use latest `node` and `pnpm` via `proto`.
 - Use `moon` for all operator commands; do not invoke `pnpm` or `cargo` directly when a moon task exists.
