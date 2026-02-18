@@ -2,6 +2,14 @@
 
 CLI-based PoC to validate zkTLS -> ZK proof -> Zeko settlement.
 
+## Start Here (for a new agent)
+1. `AGENTS.md`
+2. `TASKLIST.md`
+3. `PRD.md`
+4. `.agents/findings/TEMPLATE.md`
+
+Current active work item: `T-201` in `TASKLIST.md`.
+
 ## Requirements
 - `proto` (tool manager)
 - `moon` (task runner)
@@ -12,8 +20,6 @@ CLI-based PoC to validate zkTLS -> ZK proof -> Zeko settlement.
 ```bash
 proto install node latest --pin local -y
 proto install pnpm latest --pin local -y
-pnpm -v
-node -v
 moon --version
 ```
 
@@ -22,12 +28,20 @@ moon --version
 git submodule update --init --recursive
 ```
 
-## Install JS dependencies
+## Workspace dependency model
+- This repo is a pnpm workspace.
+- The PoC Node package lives at `poc/package.json`.
+- Versions are pinned via pnpm catalog in `pnpm-workspace.yaml`.
+
+Moon installs dependencies automatically when running tasks (`pipeline.installDependencies: true` in `.moon/workspace.yml`).
+
+## Baseline health checks
+Run these before starting new work:
 ```bash
-pnpm install
+moon run workspace:validate
 ```
 
-## Generate local keys and .env
+## Generate local keys and `.env`
 ```bash
 moon run poc:gen-wallet
 ```
@@ -49,12 +63,12 @@ Optional:
 ## Main workflow
 Run end-to-end:
 ```bash
-moon run poc:run
+moon run workspace:run
 ```
 
 Or run by stage:
 ```bash
-moon run poc:serve-mock
+moon run mock-server:serve
 moon run tlsnotary:notary
 moon run tlsnotary:prover
 moon run poc:extract
@@ -64,6 +78,27 @@ moon run poc:deploy
 moon run poc:settle
 ```
 
+## Moon project layout
+- `workspace` (repo orchestration): install, validate, run
+- `poc` (TS proving/settlement): tests, typecheck, lint, format, extract/prove/verify/deploy/settle
+- `mock-server` (HTTPS fixture): serve + tests
+- `tlsnotary` (Rust notary/prover): build/test/notary/prover
+
+## Test locations
+- `poc/tests/*.spec.ts`
+- `mock-server/tests/*.spec.ts`
+- Rust unit tests inside `tlsnotary/src/*`
+
+## Project structure notes
+- `poc/contracts/` and `poc/circuits/` are intentionally colocated inside the `poc` package (no orphan root `contracts/` directory).
+
+## Repo-local skills
+Required local skills are vendored in:
+- `.agents/skills/proto`
+- `.agents/skills/moon`
+
+See `.agents/skills/README.md` to refresh them.
+
 ## Outputs
 Artifacts are generated under `output/`:
 - `attestation.json`
@@ -71,16 +106,6 @@ Artifacts are generated under `output/`:
 - `proof.json`
 - `verification-key.json`
 - `deployed-address.json`
-
-## Troubleshooting
-- TLS handshake/version errors:
-  - Confirm mock server is TLS 1.2 only.
-- Attestation format mismatch:
-  - Ensure `signature.r_hex/s_hex`, `session_header_bytes_hex`, `notary_public_key.x_hex/y_hex` exist.
-- Proof generation fails:
-  - Confirm session header bytes are present and not truncated.
-- Zeko tx fails:
-  - Confirm fee payer is funded and GraphQL endpoint is reachable.
 
 ## Security
 - Private keys are local-only and git-ignored.

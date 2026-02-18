@@ -24,3 +24,6 @@ tlsnotary/target/
 
 # misc
 .DS_Store
+
+# local transient rust outputs
+tlsnotary/output/

@@ -1,0 +1,54 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+language: "javascript"
+
+tasks:
+  test:
+    command: "pnpm exec vitest run --config poc/vitest.config.ts"
+    options:
+      runFromWorkspaceRoot: true
+  typecheck:
+    command: "pnpm exec tsgo --noEmit -p tsconfig.json"
+    options:
+      runFromWorkspaceRoot: true
+  lint:
+    command: "pnpm exec oxlint --deny-warnings --vitest-plugin mock-server poc"
+    options:
+      runFromWorkspaceRoot: true
+  format:
+    command: "pnpm exec oxfmt --check mock-server poc"
+    options:
+      runFromWorkspaceRoot: true
+  format-write:
+    command: "pnpm exec oxfmt mock-server poc"
+    options:
+      runFromWorkspaceRoot: true
+  validate-ts:
+    deps:
+      - "poc:typecheck"
+      - "poc:lint"
+      - "poc:format"
+  extract:
+    command: "pnpm exec tsx poc/extract-fields.ts"
+    options:
+      runFromWorkspaceRoot: true
+  prove:
+    command: "pnpm exec tsx poc/prove.ts"
+    options:
+      runFromWorkspaceRoot: true
+  verify:
+    command: "pnpm exec tsx poc/verify.ts"
+    options:
+      runFromWorkspaceRoot: true
+  deploy:
+    command: "pnpm exec tsx poc/deploy.ts"
+    options:
+      runFromWorkspaceRoot: true
+  settle:
+    command: "pnpm exec tsx poc/settle.ts"
+    options:
+      runFromWorkspaceRoot: true
+  gen-wallet:
+    command: "pnpm exec tsx poc/gen-wallet.ts"
+    options:
+      runFromWorkspaceRoot: true

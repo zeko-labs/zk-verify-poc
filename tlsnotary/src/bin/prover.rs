@@ -7,13 +7,9 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use http_body_util::{BodyExt as _, Empty};
-use hyper::{body::Bytes, Request, StatusCode};
-use hyper_util::rt::TokioIo;
 use k256::ecdsa::VerifyingKey;
 use serde::Serialize;
-use tokio::io::AsyncWrite;
-use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tokio_util::compat::TokioAsyncReadCompatExt;
 
 use tlsn::{
     attestation::{
@@ -39,7 +35,7 @@ use zkverify_tlsnotary::split_signature_64;
 
 const MAX_SENT_DATA: usize = 1 << 12;
 const MAX_RECV_DATA: usize = 1 << 14;
-const OUTPUT_FILE: &str = "output/attestation.json";
+const OUTPUT_FILE: &str = "../output/attestation.json";
 
 #[derive(Debug, Serialize)]
 struct AttestationOutput {
@@ -67,7 +63,8 @@ struct PublicKeyOutput {
 }
 
 fn load_root_cert_store(cert_path: &Path) -> Result<RootCertStore> {
-    let file = File::open(cert_path).with_context(|| format!("failed opening certificate at {}", cert_path.display()))?;
+    let file = File::open(cert_path)
+        .with_context(|| format!("failed opening certificate at {}", cert_path.display()))?;
     let mut reader = BufReader::new(file);
     let certs = rustls_pemfile::certs(&mut reader)?;
     let first = certs
@@ -84,6 +81,25 @@ fn now_unix_seconds() -> Result<u64> {
         .duration_since(UNIX_EPOCH)
         .context("system clock before UNIX epoch")?
         .as_secs())
+}
+
+fn parse_http_200_response(raw_response: &[u8]) -> Result<String> {
+    let response = String::from_utf8(raw_response.to_vec())
+        .context("HTTP response from server is not valid UTF-8")?;
+
+    let mut sections = response.splitn(2, "\r\n\r\n");
+    let head = sections
+        .next()
+        .ok_or_else(|| anyhow!("missing HTTP response head"))?;
+    let body = sections
+        .next()
+        .ok_or_else(|| anyhow!("missing HTTP response body"))?;
+
+    if !(head.starts_with("HTTP/1.1 200") || head.starts_with("HTTP/1.0 200")) {
+        return Err(anyhow!("unexpected response status line: {head}"));
+    }
+
+    Ok(body.to_string())
 }
 
 #[tokio::main]
@@ -104,8 +120,8 @@ async fn main() -> Result<()> {
         .unwrap_or(4443);
     let endpoint = std::env::var("TLSN_ENDPOINT")
         .unwrap_or_else(|_| "/api/v1/employee/EMP-001".to_string());
-    let cert_path = std::env::var("TLSN_ROOT_CERT_PATH")
-        .unwrap_or_else(|_| "mock-server/cert.pem".to_string());
+    let cert_path =
+        std::env::var("TLSN_ROOT_CERT_PATH").unwrap_or_else(|_| "../mock-server/cert.pem".to_string());
 
     let root_store = load_root_cert_store(Path::new(&cert_path))?;
 
@@ -130,7 +146,7 @@ async fn main() -> Result<()> {
 
     let client_socket = tokio::net::TcpStream::connect((server_host.as_str(), server_port)).await?;
 
-    let (tls_connection, prover_task_fut) = prover.connect(
+    let (mut tls_connection, prover_task_fut) = prover.connect(
         TlsClientConfig::builder()
             .server_name(ServerName::Dns(server_domain.clone().try_into()?))
             .root_store(root_store)
@@ -138,30 +154,16 @@ async fn main() -> Result<()> {
         client_socket.compat(),
     )?;
 
-    let tls_connection = TokioIo::new(tls_connection.compat());
     let prover_task = tokio::spawn(prover_task_fut);
 
-    let (mut request_sender, connection) = hyper::client::conn::http1::handshake(tls_connection).await?;
-    tokio::spawn(connection);
+    let raw_request = format!(
+        "GET {endpoint} HTTP/1.1\r\nHost: {server_domain}\r\nAccept: */*\r\nAccept-Encoding: identity\r\nConnection: close\r\nUser-Agent: zkverify-poc\r\n\r\n"
+    );
+    tls_connection.write_all(raw_request.as_bytes()).await?;
 
-    let request = Request::builder()
-        .uri(endpoint.clone())
-        .header("Host", server_domain.as_str())
-        .header("Accept", "*/*")
-        .header("Accept-Encoding", "identity")
-        .header("Connection", "close")
-        .header("User-Agent", "zkverify-poc")
-        .method("GET")
-        .body(Empty::<Bytes>::new())?;
-
-    let response = request_sender.send_request(request).await?;
-
-    if response.status() != StatusCode::OK {
-        return Err(anyhow!("unexpected response status: {}", response.status()));
-    }
-
-    let body = response.into_body().collect().await?.to_bytes();
-    let body_string = String::from_utf8(body.to_vec()).context("response body is not valid UTF-8")?;
+    let mut raw_response = Vec::new();
+    tls_connection.read_to_end(&mut raw_response).await?;
+    let fallback_body = parse_http_200_response(&raw_response)?;
 
     let mut prover = prover_task.await??;
     let transcript = HttpTranscript::parse(prover.transcript())?;
@@ -171,9 +173,9 @@ async fn main() -> Result<()> {
 
     let transcript_commit = transcript_builder.build()?;
 
-    let request_config = RequestConfig::builder()
-        .transcript_commit(transcript_commit)
-        .build()?;
+    let mut request_config_builder = RequestConfig::builder();
+    request_config_builder.transcript_commit(transcript_commit);
+    let request_config = request_config_builder.build()?;
 
     let mut disclosure_builder = ProveConfig::builder(prover.transcript());
     if let Some(config) = request_config.transcript_commit() {
@@ -191,6 +193,13 @@ async fn main() -> Result<()> {
     let prover_transcript = prover.transcript().clone();
     let tls_transcript = prover.tls_transcript().clone();
     prover.close().await?;
+
+    let response_body = transcript
+        .responses
+        .first()
+        .and_then(|response| response.body.as_ref())
+        .map(|body| String::from_utf8_lossy(&body.content_data()).to_string())
+        .unwrap_or(fallback_body);
 
     let mut attestation_request_builder = AttestationRequest::builder(&request_config);
     attestation_request_builder
@@ -267,14 +276,18 @@ async fn main() -> Result<()> {
             x_hex: hex::encode(x),
             y_hex: hex::encode(y),
         },
-        response_body: body_string,
+        response_body,
         server_name: server_domain,
         timestamp: now_unix_seconds()?,
         signature_alg: "secp256k1".to_string(),
     };
 
-    tokio::fs::create_dir_all("output").await?;
-    tokio::fs::write(OUTPUT_FILE, format!("{}\n", serde_json::to_string_pretty(&output)?)).await?;
+    tokio::fs::create_dir_all("../output").await?;
+    tokio::fs::write(
+        OUTPUT_FILE,
+        format!("{}\n", serde_json::to_string_pretty(&output)?),
+    )
+    .await?;
 
     println!("[prover] Attestation written to {OUTPUT_FILE}");
 

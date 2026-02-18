@@ -14,7 +14,10 @@ pub fn parse_hex32(input: &str) -> Result<[u8; 32]> {
 
 pub fn split_signature_64(signature: &[u8]) -> Result<([u8; 32], [u8; 32])> {
     if signature.len() != 64 {
-        return Err(anyhow!("expected compact 64-byte signature, got {} bytes", signature.len()));
+        return Err(anyhow!(
+            "expected compact 64-byte signature, got {} bytes",
+            signature.len()
+        ));
     }
 
     let mut r = [0_u8; 32];
@@ -30,6 +33,7 @@ pub fn required_env(name: &str) -> Result<String> {
 }
 
 #[cfg(test)]
+#[allow(non_snake_case)]
 mod tests {
     use super::{parse_hex32, split_signature_64};
 

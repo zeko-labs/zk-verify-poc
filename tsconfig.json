@@ -4,6 +4,8 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
@@ -13,10 +15,11 @@
   },
   "include": [
     "mock-server/**/*.ts",
-    "circuits/**/*.ts",
-    "contracts/**/*.ts",
-    "scripts/**/*.ts",
-    "tests/**/*.ts",
+    "poc/**/*.ts",
+    "mock-server/tests/**/*.ts",
+    "poc/tests/**/*.ts",
+    "mock-server/vitest.config.ts",
+    "poc/vitest.config.ts",
     "vitest.config.ts"
   ]
 }

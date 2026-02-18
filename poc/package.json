@@ -1,9 +1,8 @@
 {
-  "name": "zkverify-poc-workspace",
+  "name": "@zkverify/poc",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.30.0",
   "dependencies": {
     "dotenv": "catalog:",
     "o1js": "catalog:"

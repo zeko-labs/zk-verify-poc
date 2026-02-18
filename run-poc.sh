@@ -27,7 +27,7 @@ echo "========================================="
 echo ""
 
 echo "[1/6] Starting mock employer HTTPS server (TLS 1.2)..."
-moon run poc:serve-mock &
+moon run mock-server:serve &
 MOCK_PID=$!
 sleep 2
 echo "       -> Listening on https://localhost:4443"

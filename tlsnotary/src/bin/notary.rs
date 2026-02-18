@@ -1,13 +1,9 @@
-use std::{
-    fs::File,
-    io::BufReader,
-    path::Path,
-};
+use std::{fs::File, io::BufReader, path::Path};
 
 use anyhow::{anyhow, Context, Result};
 use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use tokio::{io::AsyncRead, net::TcpListener};
-use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use tokio::net::TcpListener;
+use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::info;
 
 use tlsn::{
@@ -26,7 +22,8 @@ use tlsn::{
 use zkverify_tlsnotary::{parse_hex32, required_env};
 
 fn load_root_cert_store(cert_path: &Path) -> Result<RootCertStore> {
-    let file = File::open(cert_path).with_context(|| format!("failed opening certificate at {}", cert_path.display()))?;
+    let file = File::open(cert_path)
+        .with_context(|| format!("failed opening certificate at {}", cert_path.display()))?;
     let mut reader = BufReader::new(file);
     let certs = rustls_pemfile::certs(&mut reader)?;
     let first = certs
@@ -38,11 +35,7 @@ fn load_root_cert_store(cert_path: &Path) -> Result<RootCertStore> {
     })
 }
 
-async fn run_notary<S>(
-    socket: S,
-    root_store: RootCertStore,
-    signing_key: [u8; 32],
-) -> Result<()>
+async fn run_notary<S>(socket: S, root_store: RootCertStore, signing_key: [u8; 32]) -> Result<()>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + Sync + Unpin + 'static,
 {
@@ -151,8 +144,8 @@ async fn main() -> Result<()> {
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(7047);
 
-    let cert_path = std::env::var("TLSN_ROOT_CERT_PATH")
-        .unwrap_or_else(|_| "mock-server/cert.pem".to_string());
+    let cert_path =
+        std::env::var("TLSN_ROOT_CERT_PATH").unwrap_or_else(|_| "../mock-server/cert.pem".to_string());
 
     let signing_key_hex = required_env("TLSNOTARY_SIGNING_KEY_HEX")?;
     let signing_key = parse_hex32(&signing_key_hex)?;
