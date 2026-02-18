@@ -1,0 +1,27 @@
+{
+  "name": "zkverify-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "mock:server": "tsx mock-server/server.ts",
+    "extract": "tsx scripts/extract-fields.ts",
+    "prove": "tsx scripts/prove.ts",
+    "verify": "tsx scripts/verify.ts",
+    "deploy": "tsx scripts/deploy.ts",
+    "settle": "tsx scripts/settle.ts",
+    "wallet:gen": "tsx scripts/gen-wallet.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "o1js": "2.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.58",
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.2",
+    "vitest": "^2.1.8"
+  }
+}

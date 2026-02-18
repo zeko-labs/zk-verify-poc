@@ -1,0 +1,25 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+language: 'javascript'
+
+tasks:
+  install:
+    command: 'pnpm install'
+  test:
+    command: 'pnpm test'
+  serve-mock:
+    command: 'pnpm run mock:server'
+  extract:
+    command: 'pnpm run extract'
+  prove:
+    command: 'pnpm run prove'
+  verify:
+    command: 'pnpm run verify'
+  deploy:
+    command: 'pnpm run deploy'
+  settle:
+    command: 'pnpm run settle'
+  gen-wallet:
+    command: 'pnpm run wallet:gen'
+  run:
+    command: './run-poc.sh'

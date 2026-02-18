@@ -1,0 +1,59 @@
+use anyhow::{anyhow, Result};
+
+pub fn parse_hex32(input: &str) -> Result<[u8; 32]> {
+    let normalized = input.trim().trim_start_matches("0x");
+    let bytes = hex::decode(normalized)?;
+    if bytes.len() != 32 {
+        return Err(anyhow!("expected 32-byte hex payload, got {} bytes", bytes.len()));
+    }
+
+    let mut out = [0_u8; 32];
+    out.copy_from_slice(&bytes);
+    Ok(out)
+}
+
+pub fn split_signature_64(signature: &[u8]) -> Result<([u8; 32], [u8; 32])> {
+    if signature.len() != 64 {
+        return Err(anyhow!("expected compact 64-byte signature, got {} bytes", signature.len()));
+    }
+
+    let mut r = [0_u8; 32];
+    let mut s = [0_u8; 32];
+    r.copy_from_slice(&signature[0..32]);
+    s.copy_from_slice(&signature[32..64]);
+
+    Ok((r, s))
+}
+
+pub fn required_env(name: &str) -> Result<String> {
+    std::env::var(name).map_err(|_| anyhow!("missing required environment variable: {name}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_hex32, split_signature_64};
+
+    #[test]
+    fn Given_valid_32_byte_hex_When_parsed_Then_array_is_returned() {
+        let payload = "11".repeat(32);
+        let parsed = parse_hex32(&payload).expect("parse should succeed");
+        assert_eq!(parsed.len(), 32);
+        assert_eq!(parsed[0], 0x11);
+    }
+
+    #[test]
+    fn Given_invalid_hex_size_When_parsed_Then_error_is_returned() {
+        let payload = "aa".repeat(10);
+        assert!(parse_hex32(&payload).is_err());
+    }
+
+    #[test]
+    fn Given_compact_signature_When_split_Then_r_and_s_are_extracted() {
+        let payload = vec![1_u8; 64];
+        let (r, s) = split_signature_64(&payload).expect("split should succeed");
+        assert_eq!(r.len(), 32);
+        assert_eq!(s.len(), 32);
+        assert_eq!(r[0], 1);
+        assert_eq!(s[0], 1);
+    }
+}
