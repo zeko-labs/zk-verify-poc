@@ -24,24 +24,28 @@ Use this map before editing so the right files are touched first:
 `/run-poc.sh`, `/README.md`, `/TASKLIST.md`
 
 ## Non-Negotiable Workflow
-1. Update `TASKLIST.md` to `IN_PROGRESS` before touching implementation files for that step.
+Scope: this workflow is mandatory for source code changes (runtime, business logic, and tests).  
+For chore/tooling/config/docs-only changes (for example Moon/proto config, hooks, workspace metadata, docs), this workflow is optional unless explicitly requested.
+
+1. For source code changes, update `TASKLIST.md` to `IN_PROGRESS` before touching implementation files for that step.
 2. RED first: add/adjust tests that fail for the intended behavior.
 3. Record RED evidence in `TASKLIST.md` (command + failure summary).
 4. GREEN second: implement the minimal code to make RED pass.
 5. Record GREEN evidence in `TASKLIST.md` (command + pass summary).
 6. REFACTOR third (optional): improve code without changing behavior.
-7. Update `TASKLIST.md` immediately after each sub-step. Do not batch updates.
+7. For source code changes, update `TASKLIST.md` immediately after each sub-step. Do not batch updates.
 
 ## TDD/BDD Enforcement
-- All tests must use BDD naming style: `Given ... When ... Then ...`.
-- No feature is considered complete unless RED and GREEN evidence exists.
-- If code exists without prior RED coverage, create a backfill RED task and do not mark the item `DONE`.
-- `DONE` status requires: tests passing + relevant validation commands passing.
+- For source code tests, all test names must use BDD style: `Given ... When ... Then ...`.
+- No source-level feature is complete unless RED and GREEN evidence exists.
+- If source behavior code exists without prior RED coverage, create a backfill RED task and do not mark the item `DONE`.
+- `DONE` status for source work requires: tests passing + relevant validation commands passing.
 
 ## Tasklist Discipline
 - `TASKLIST.md` is the execution source of truth.
 - moon tasks are command runners only; they do not replace planning status.
-- Every major action must map to a tasklist item.
+- Every major source code action must map to a tasklist item.
+- Chore/tooling/config/docs-only actions may be executed without creating or updating tasklist items.
 - Keep one explicit active pointer (`NEXT_TASK_ID`) in `TASKLIST.md` at all times.
 - Remove stale status docs instead of adding parallel trackers.
 
