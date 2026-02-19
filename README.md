@@ -36,6 +36,12 @@ If `.env` is already configured and the contract is deployed:
 moon run workspace:run
 ```
 
+Run the ineligible-user negative flow (expected prove-stage rejection):
+
+```bash
+moon run workspace:run-ineligible
+```
+
 ## Setup from scratch
 
 1. **Install toolchain:**
@@ -99,6 +105,9 @@ Each `workspace:run` invocation creates a timestamped output directory (e.g. `ou
 | 6 | Settle proof on-chain | -- |
 | 7 | Verify on-chain state via GraphQL | -- |
 
+Negative-flow runner:
+- `moon run workspace:run-ineligible` runs the same orchestration with `TLSN_ENDPOINT=/api/v1/employee/EMP-002` and expects proof generation to fail at `poc:prove` due eligibility policy mismatch.
+
 ## Running individual stages
 
 ```bash
@@ -130,6 +139,40 @@ Standalone stage default (when `OUTPUT_DIR` is unset):
 Fixed:
 - `output/deployed-address.json` -- deployed zkApp metadata
 
+## UI (Nuxt SPA)
+
+The `ui/` project is a strict client-side Nuxt SPA (`ssr: false`) for browsing proof runs.
+
+Data ingestion contract:
+- A custom Nuxt module copies timestamped run folders from `output/<timestamp>/` into `ui/public/proof-data/runs/<timestamp>/`.
+- The module also copies `output/deployed-address.json` into `ui/public/proof-data/deployed-address.json` when present.
+- `ui/public/proof-data/manifest.json` is generated at Nuxt startup/build.
+- No server rendering is used; refresh copied data by restarting `moon run ui:dev`.
+
+Run locally:
+
+```bash
+moon run ui:dev
+```
+
+Build static assets:
+
+```bash
+moon run ui:generate
+```
+
+UI routes:
+- `/` directory of timestamped proof runs
+- `/proof/:runId` certificate overview
+- `/proof/:runId/detail` full cryptographic record
+
+Cloudflare Worker static deploy config is at `ui/wrangler.jsonc` (SPA fallback enabled).
+Deploy command:
+
+```bash
+moon run ui:deploy
+```
+
 ## On-chain verification
 
 ```bash
@@ -154,6 +197,7 @@ moon run workspace:validate   # typecheck + lint + format + tests
 - `poc` -- TypeScript proving/settlement
 - `mock-server` -- HTTPS fixture server
 - `tlsnotary` -- Rust notary and prover
+- `ui` -- Nuxt SPA proof explorer + Cloudflare worker static deployment
 
 ## Security
 

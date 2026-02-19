@@ -1,6 +1,7 @@
 packages:
   - '.'
   - 'poc'
+  - 'ui'
 
 catalog:
   dotenv: ^16.6.1
@@ -13,3 +14,7 @@ catalog:
   tsx: ^4.20.5
   typescript: ^5.8.2
   vitest: ^2.1.8
+  nuxt: ^4.3.1
+  vue: ^3.5.28
+  vue-router: ^4.6.4
+  wrangler: ^4.47.3

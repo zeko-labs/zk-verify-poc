@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { EMPLOYEE_RECORD, TLS_VERSION_OPTIONS, createTlsServerOptions } from "../server.js";
+import {
+  EMPLOYEE_RECORD,
+  INELIGIBLE_EMPLOYEE_RECORD,
+  TLS_VERSION_OPTIONS,
+  createTlsServerOptions,
+} from "../server.js";
 
 describe("mock server configuration", () => {
   it("Given mock server constants When inspected Then TLS is forced to 1.2", () => {
@@ -15,6 +20,12 @@ describe("mock server configuration", () => {
     expect(EMPLOYEE_RECORD.employee_id).toBe("EMP-001");
     expect(EMPLOYEE_RECORD.annual_salary).toBe(85000);
     expect(EMPLOYEE_RECORD.employment_status).toBe("active");
+  });
+
+  it("Given ineligible employee endpoint fixture When inspected Then salary is below policy minimum", () => {
+    expect(INELIGIBLE_EMPLOYEE_RECORD.employee_id).toBe("EMP-002");
+    expect(INELIGIBLE_EMPLOYEE_RECORD.annual_salary).toBeLessThan(50_000);
+    expect(INELIGIBLE_EMPLOYEE_RECORD.employment_status).toBe("active");
   });
 
   it("Given invalid cert and key paths When TLS server options are loaded Then fail-fast diagnostics include file paths", () => {

@@ -11,9 +11,9 @@ Status legend: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`
 5. Update this file immediately after each RED/GREEN step with command evidence.
 
 ## Active Pointer
-- `NEXT_TASK_ID`: `NONE`
-- Current owner status: `DONE`
-- Resume location: Awaiting next scoped task from user.
+- `NEXT_TASK_ID`: `T-212`
+- Current owner status: `IN_PROGRESS`
+- Resume location: `T-212` ineligible-user full pipeline task implementation pending.
 
 ## Verified Baseline (Already Green)
 - [x] `DONE` `T-001` Fresh repo initialized and core structure created.
@@ -247,3 +247,137 @@ Evidence log:
 - GREEN: `moon run poc:test` passed (27/27 tests).
 - GREEN: `moon run workspace:validate` passed.
 - GREEN: `moon run workspace:run` passed end-to-end with settlement tx `5Ju2eVFRVkru9mXB8caB1Vq4o75vqAY9cs1q8EjQnKXxUfzq1BRV`.
+
+### `T-210` Nuxt SPA UI MVP + Cloudflare worker deployment
+Status: `DONE`
+Goal: implement a strict SPA Nuxt UI that visualizes timestamped PoC runs, with filesystem output sync into public assets and Cloudflare Worker static deployment config.
+
+RED checklist:
+- [x] Add failing tests for SPA config contract (`ssr: false`) and wrangler static SPA fallback.
+- [x] Add failing tests for output sync selection contract (timestamp runs only + optional `deployed-address.json`).
+- [x] Add failing tests for proof status derivation and graceful empty-state behavior.
+
+GREEN checklist:
+- [x] Bootstrap `ui/` with latest Nuxt using `nuxi`.
+- [x] Implement custom Nuxt module to copy `output/<timestamp>/` and `output/deployed-address.json` into `ui/public/proof-data/` and emit `manifest.json`.
+- [x] Implement three SPA routes (`/`, `/proof/[runId]`, `/proof/[runId]/detail`) with simple Vue components and vanilla CSS.
+- [x] Add Moon project/tasks for `ui` and wire into workspace validation/test orchestration.
+- [x] Add `ui/wrangler.jsonc` for Cloudflare Worker static asset deployment with SPA fallback.
+- [x] Update `README.md` with UI run/build/deploy instructions and data contract.
+
+Evidence log:
+- RED: `moon run poc:test` failed in new `poc/tests/ui-spa.spec.ts` because `ui/nuxt.config.ts`, `ui/wrangler.jsonc`, `ui/modules/proof-output-sync.ts`, and `ui/lib/proof-data.ts` do not exist yet (5 failing contract tests).
+- GREEN: bootstrapped Nuxt app in `ui/` with `pnpm dlx nuxi@latest init ui --force --template minimal --packageManager pnpm --no-gitInit --no-install`.
+- GREEN: `moon run poc:test` passed with new `poc/tests/ui-spa.spec.ts` contracts (`31/31` tests passing).
+- GREEN: `moon run ui:test` passed (`ui/tests/ui-contracts.spec.ts`, `4/4` tests passing).
+- GREEN: `moon run ui:validate` passed (`ui:test` + static SPA generation via `ui:generate`).
+- GREEN: `moon run workspace:validate` passed with `ui:validate` included in workspace gates.
+- GREEN: `moon run workspace:test` passed with `ui:test` included in workspace test orchestration.
+
+### `T-211` UI reference parity hardening (Playwright-guided)
+Status: `DONE`
+Goal: align Nuxt SPA page structure, copy, and visual presentation with `ui/references/*.html` by inspecting live and reference screenshots using Playwright CLI.
+
+RED checklist:
+- [x] Add failing tests for reference parity copy/contracts on index, overview, and detail pages.
+- [x] Add failing tests for reference baseline CSS tokens/layout primitives.
+
+GREEN checklist:
+- [x] Update page markup/classes to match reference hierarchy and labels.
+- [x] Update global CSS to mirror reference visual language (grid background, spacing, typography, cards, badges, details sections).
+- [x] Re-run Playwright screenshot pass for live vs reference comparison.
+- [x] Re-run `moon run ui:test`, `moon run ui:validate`, and `moon run workspace:validate`.
+
+Evidence log:
+- RED: `moon run ui:test` failed in new `ui/tests/ui-reference-parity.spec.ts` (4 failing tests) because current pages/CSS do not yet match reference contracts (`PROOF_EXPLORER` branding, `Certificate Overview` breadcrumb copy, `Full Record` + privacy-layer section labels, and canonical grid theme tokens).
+- GREEN: rewired page structures/copy in `ui/app/pages/index.vue`, `ui/app/pages/proof/[runId]/index.vue`, and `ui/app/pages/proof/[runId]/detail.vue` to match served reference hierarchy and labels.
+- GREEN: rewrote `ui/app/assets/css/main.css` to the reference visual baseline (dark grid background, chip counters, bordered table, centered overview hero card, and detail accordion styling).
+- GREEN: Playwright CLI screenshot pass executed against live Nuxt routes and served references:
+  - `npx playwright screenshot --viewport-size=1280,720 --wait-for-timeout=2000 http://localhost:3000/ /tmp/ui-parity/live-index.png`
+  - `npx playwright screenshot --viewport-size=1280,720 --wait-for-timeout=2000 http://localhost:3000/proof/2026-02-19T04-24-17 /tmp/ui-parity/live-overview.png`
+  - `npx playwright screenshot --viewport-size=1280,720 --wait-for-timeout=2000 http://localhost:3000/proof/2026-02-19T04-24-17/detail /tmp/ui-parity/live-detail.png`
+  - `npx playwright screenshot --viewport-size=1280,720 http://localhost:4174/index.html /tmp/ui-parity/ref-index.png`
+  - `npx playwright screenshot --viewport-size=1280,720 http://localhost:4174/proof-overview.html /tmp/ui-parity/ref-overview.png`
+  - `npx playwright screenshot --viewport-size=1280,720 http://localhost:4174/proof-detail.html /tmp/ui-parity/ref-detail.png`
+- GREEN: `moon run ui:test` passed (`ui/tests/ui-reference-parity.spec.ts` and `ui/tests/ui-contracts.spec.ts`, `8/8` tests passing).
+- GREEN: `moon run ui:validate` passed (`ui:test` + `ui:generate`).
+- GREEN: `moon run workspace:validate` passed with `ui:validate` and workspace validation gates green.
+
+### `T-212` Ineligible-user full pipeline task
+Status: `BLOCKED`
+Goal: add a dedicated Moon task that executes the full pipeline in an ineligible-user scenario and validates that proving is rejected by eligibility constraints.
+Blocker: workspace-level validation is red due unrelated UI regressions tracked under `T-213`.
+
+RED checklist:
+- [x] Add failing tests for workspace Moon task wiring to an ineligible pipeline runner.
+- [x] Add failing tests for expected prove-stage rejection handling in the ineligible runner.
+- [x] Add failing tests for mock-server ineligible employee fixture contract.
+
+GREEN checklist:
+- [x] Implement mock-server ineligible employee endpoint fixture.
+- [x] Implement ineligible pipeline runner script and Moon task wiring.
+- [x] Update operator docs for the new negative-flow task.
+- [ ] Re-run relevant tests/validation and keep baseline green.
+
+Evidence log:
+- RED: `moon run mock-server:test` failed in `mock-server/tests/server.spec.ts` because `INELIGIBLE_EMPLOYEE_RECORD` is not yet exported from `mock-server/server.ts`.
+- RED: `moon run poc:test` failed in `poc/tests/run-poc-ineligible.spec.ts` because `moon.yml` does not define `run-ineligible` and `run-poc-ineligible.sh` does not exist yet.
+- GREEN: implemented ineligible fixture routing in `mock-server/server.ts` with exported `INELIGIBLE_EMPLOYEE_RECORD` (`EMP-002`, salary `49000`) and dynamic `/api/v1/employee/:id` selection.
+- GREEN: added `run-poc-ineligible.sh` wrapper to run `run-poc.sh` with `TLSN_ENDPOINT=/api/v1/employee/EMP-002`, require failure at `poc:prove`, and assert eligibility rejection diagnostics.
+- GREEN: wired workspace task `run-ineligible` in `moon.yml` and documented command usage in `README.md`.
+- GREEN: `moon run mock-server:test` passed.
+- GREEN: `moon run poc:test` passed (including `poc/tests/run-poc-ineligible.spec.ts`).
+- GREEN: `moon run workspace:run-ineligible` passed end-to-end and reported expected prove-stage rejection `salary 49000 is below required minimum 50000`.
+- GREEN: `moon run workspace:validate` failed on unrelated `ui/tests/ui-contracts.spec.ts` regressions tracked in `T-213`; this task remains blocked on workspace-wide green gate.
+
+### `T-213` UI data correctness and footer pass
+Status: `DONE`
+Goal: resolve live QA defects in the UI by rendering full timestamps, eliminating placeholder/unknown proof artifacts, adding ZekoScan links, replacing placeholder timeline times, and adding a footer.
+
+RED checklist:
+- [x] Add failing tests for datetime rendering and proof-hash derivation contract.
+- [x] Add failing tests for incomplete run exclusion during output sync (unknown-only run removal).
+- [x] Add failing tests for ZekoScan links and app footer presence.
+- [x] Add failing tests for non-placeholder timeline timestamps.
+
+GREEN checklist:
+- [x] Implement datetime rendering in Directory rows.
+- [x] Implement proof-hash derivation from artifact content instead of placeholder commitment fallback.
+- [x] Exclude incomplete runs in sync logic and remove existing incomplete source/output run.
+- [x] Add ZekoScan account/transaction links in Full Record on-chain section.
+- [x] Compute run-relative timeline timestamps from run identifier instead of fixed placeholders.
+- [x] Add application footer across SPA pages.
+- [x] Re-run `moon run ui:test`, `moon run ui:validate`, and `moon run workspace:validate`.
+
+Evidence log:
+- RED: `moon run ui:test` failed in `ui/tests/ui-contracts.spec.ts` with 6 failing tests: run-id datetime formatting still returns date-only (`2026-02-19`), missing `deriveProofArtifactHash`, missing `selectCompleteTimestampRunDirs`, missing ZekoScan links in `ui/app/pages/proof/[runId]/detail.vue`, missing `buildPipelineTimeline`, and missing footer markup in `ui/app/app.vue`.
+- GREEN: implemented run completeness filtering in `ui/modules/proof-output-sync.ts` via `selectCompleteTimestampRunDirs` requiring `attestation.json`, `disclosed-fields.json`, `proof.json`, and `verification-key.json`.
+- GREEN: implemented datetime and non-placeholder hash derivation in `ui/lib/proof-data.ts` via `runIdToDateLabel` full timestamp formatting and `deriveProofArtifactHash` (SHA-256 of proof artifact text).
+- GREEN: implemented timeline generation in `ui/lib/proof-data.ts` via `buildPipelineTimeline(runId)` with run-relative stage timestamps (replacing fixed placeholder constants in route usage).
+- GREEN: removed incomplete source run directories (`output/2026-02-19T03-59-59` and `output/2026-02-20T06-11-06`) and ensured copied data excludes incomplete runs.
+- GREEN: added ZekoScan links for on-chain account and transaction values in `ui/app/pages/proof/[runId]/detail.vue` (`https://zekoscan.io/testnet/account/...`, `https://zekoscan.io/testnet/tx/...`) and link rendering support in `ui/app/components/KeyValueGrid.vue`.
+- GREEN: added app footer chrome in `ui/app/app.vue` and styling in `ui/app/assets/css/main.css`.
+- GREEN: `moon run ui:test` passed (`ui/tests/ui-reference-parity.spec.ts` and `ui/tests/ui-contracts.spec.ts`, `14/14` tests passing).
+- GREEN: `moon run ui:validate` passed (`ui:test` + `ui:generate`).
+- GREEN: `moon run workspace:validate` passed with workspace validation gates green.
+
+### `T-214` Ineligible output parsing in UI
+Status: `DONE`
+Goal: ensure UI sync + parsing includes ineligible runs that only emit `attestation.json` and `disclosed-fields.json`, while still excluding noise-only runs.
+
+RED checklist:
+- [x] Add failing tests for sync selection that includes ineligible artifact sets (`attestation + disclosed-fields`) and excludes log-only directories.
+- [x] Add failing tests for UI status derivation to classify ineligible runs as `failed` when proof output is absent but disclosed fields are present.
+
+GREEN checklist:
+- [x] Update output sync selection contract to include ineligible artifact sets.
+- [x] Update proof-data status derivation to mark ineligible outputs as `failed`.
+- [x] Re-run `moon run ui:test`, `moon run ui:validate`, and `moon run workspace:validate`.
+
+Evidence log:
+- RED: `moon run ui:test` failed in `ui/tests/ui-contracts.spec.ts` with 2 expected failures: `selectCompleteTimestampRunDirs` currently excludes ineligible runs (`attestation.json` + `disclosed-fields.json` only), and `deriveRunStatus` is not implemented/exported for ineligible status classification.
+- GREEN: updated `ui/modules/proof-output-sync.ts` so `selectCompleteTimestampRunDirs` accepts timestamp runs with minimum renderable artifacts (`attestation.json` + `disclosed-fields.json`) while still excluding noise-only directories.
+- GREEN: added `deriveRunStatus` in `ui/lib/proof-data.ts` and wired it into `loadRunSummary` and `loadProofRecord` to classify missing-proof + disclosed-fields runs as `failed`.
+- GREEN: `moon run ui:test` passed (`15/15` tests).
+- GREEN: `moon run ui:validate` passed.
+- GREEN: `moon run workspace:validate` first failed with `ui:generate` `ENOTEMPTY` race while `ui:dev` was running, then passed after stopping `ui:dev` and rerunning validation.
