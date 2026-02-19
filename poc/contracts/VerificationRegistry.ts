@@ -1,4 +1,4 @@
-import { Field, SmartContract, State, Struct, declareMethods, declareState } from "o1js";
+import { Field, SmartContract, State, Struct, method, state } from "o1js";
 
 import { EligibilityProof } from "../circuits/eligibility.js";
 
@@ -8,7 +8,10 @@ export class VerificationEvent extends Struct({
 }) {}
 
 export class VerificationRegistry extends SmartContract {
+  @state(Field)
   lastProofHash = State<Field>();
+
+  @state(Field)
   lastResult = State<Field>();
 
   events = {
@@ -21,6 +24,7 @@ export class VerificationRegistry extends SmartContract {
     this.lastResult.set(Field(0));
   }
 
+  @method
   async recordVerification(proofHash: Field, proof: EligibilityProof) {
     proof.verify();
 
@@ -37,14 +41,3 @@ export class VerificationRegistry extends SmartContract {
     );
   }
 }
-
-// Use non-decorator declarations for compatibility with the current tsgo/tsx runtime setup.
-declareState(VerificationRegistry, {
-  lastProofHash: Field,
-  lastResult: Field,
-} as any);
-
-declareMethods(VerificationRegistry, {
-  init: [],
-  recordVerification: [Field, EligibilityProof],
-} as any);

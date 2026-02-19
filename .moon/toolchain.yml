@@ -1,0 +1,12 @@
+$schema: 'https://moonrepo.dev/schemas/toolchain.json'
+
+unstable_javascript:
+  packageManager: 'pnpm'
+  inferTasksFromScripts: false
+
+unstable_node: {}
+
+unstable_pnpm: {}
+
+unstable_rust:
+  version: '1.93.1'

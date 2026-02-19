@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.30.0",
+  "scripts": {
+    "prepare": "lefthook install"
+  },
   "dependencies": {
     "dotenv": "catalog:",
     "o1js": "catalog:"
@@ -11,10 +13,12 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
+    "lefthook": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "packageManager": "pnpm@10.30.0"
 }

@@ -3,14 +3,18 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("contract and circuit security contracts", () => {
-  it("Given VerificationRegistry source When inspected Then recordVerification requires an EligibilityProof and verifies it", () => {
+  it("Given VerificationRegistry source When inspected Then decorator-based state and method declarations are used with EligibilityProof verification", () => {
     const source = readFileSync("poc/contracts/VerificationRegistry.ts", "utf8");
 
+    expect(source).toMatch(/@state\(Field\)\s+lastProofHash\s*=\s*State<Field>\(\)/);
+    expect(source).toMatch(/@state\(Field\)\s+lastResult\s*=\s*State<Field>\(\)/);
+    expect(source).toMatch(/@method\s+async\s+recordVerification\(/);
     expect(source).toMatch(
       /async recordVerification\(proofHash: Field,\s*proof: EligibilityProof\)/,
     );
     expect(source).toMatch(/proof\.verify\(\)/);
-    expect(source).toMatch(/recordVerification:\s*\[Field,\s*EligibilityProof\]/);
+    expect(source).not.toMatch(/\bdeclareState\s*\(/);
+    expect(source).not.toMatch(/\bdeclareMethods\s*\(/);
   });
 
   it("Given eligibility circuit source When inspected Then private inputs exclude prover-chosen notary key and policy parameters", () => {
