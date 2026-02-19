@@ -1,0 +1,20 @@
+$schema: 'https://moonrepo.dev/schemas/project.json'
+
+language: 'javascript'
+
+tasks:
+  test:
+    deps:
+      - 'poc:test'
+      - 'mock-server:test'
+      - 'tlsnotary:test'
+  validate:
+    deps:
+      - 'poc:validate-ts'
+      - 'poc:test'
+      - 'mock-server:test'
+      - 'tlsnotary:test'
+  run:
+    command: './run-poc.sh'
+    options:
+      cache: false
