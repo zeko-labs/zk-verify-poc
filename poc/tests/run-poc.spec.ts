@@ -96,6 +96,13 @@ describe("run-poc smoke behavior", () => {
     expect(script).not.toContain('sleep "$NOTARY_STARTUP_DELAY_SEC"');
   });
 
+  it("Given endpoint override requirements When inspecting run-poc.sh Then dotenv loading can be followed by a TLSN endpoint override", () => {
+    const script = readFileSync("run-poc.sh", "utf8");
+
+    expect(script).toContain('if [ -n "${RUN_POC_TLSN_ENDPOINT_OVERRIDE:-}" ]; then');
+    expect(script).toContain('export TLSN_ENDPOINT="${RUN_POC_TLSN_ENDPOINT_OVERRIDE}"');
+  });
+
   it("Given successful stage execution When run-poc.sh runs Then startup order and cleanup diagnostics are emitted", () => {
     const result = runPipeline();
 

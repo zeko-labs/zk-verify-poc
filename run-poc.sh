@@ -8,6 +8,10 @@ if [ -f .env ]; then
   set +a
 fi
 
+if [ -n "${RUN_POC_TLSN_ENDPOINT_OVERRIDE:-}" ]; then
+  export TLSN_ENDPOINT="${RUN_POC_TLSN_ENDPOINT_OVERRIDE}"
+fi
+
 RUN_ID="$(date +%Y-%m-%dT%H-%M-%S)"
 export OUTPUT_DIR="$(pwd)/output/${RUN_ID}"
 

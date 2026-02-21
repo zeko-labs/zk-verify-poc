@@ -11,9 +11,9 @@ Status legend: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`
 5. Update this file immediately after each RED/GREEN step with command evidence.
 
 ## Active Pointer
-- `NEXT_TASK_ID`: `T-212`
-- Current owner status: `BLOCKED`
-- Resume location: `T-212` ineligible-user full pipeline task (blocked until workspace-wide green verification is rerun).
+- `NEXT_TASK_ID`: `T-224`
+- Current owner status: `DONE`
+- Resume location: `T-224` reviewer fixes completed; await next task selection.
 
 ## Verified Baseline (Already Green)
 - [x] `DONE` `T-001` Fresh repo initialized and core structure created.
@@ -581,3 +581,27 @@ Evidence log:
 - GREEN: updated `ui/app/pages/index.vue` to remove the proof column entirely, keep a four-column grid (`status/circuit/date/network`), and render mobile field labels + card-style row treatment at `@media (max-width: 1024px)`.
 - GREEN: `moon run ui:test` passed (`32/32` tests).
 - GREEN: `moon run ui:validate` passed (`ui:test`, `ui:typecheck`, `ui:generate`).
+
+### `T-224` Reviewer follow-up: deploy task build dependency + deterministic ineligible dotenv override
+Status: `DONE`
+Goal: resolve review findings by making `ui:deploy` runnable from the documented sequence and ensuring `workspace:run-ineligible` always targets the ineligible endpoint even when `.env` defines `TLSN_ENDPOINT`.
+
+RED checklist:
+- [x] Add failing test for `ui:deploy` task contract requiring `ui:build` dependency before wrangler deploy.
+- [x] Add failing test for ineligible runner behavior when pipeline dotenv loading overrides `TLSN_ENDPOINT`.
+- [x] Add failing test for `run-poc.sh` contract supporting post-dotenv endpoint override.
+
+GREEN checklist:
+- [x] Patch `ui/moon.yml` so `ui:deploy` depends on `ui:build`.
+- [x] Patch ineligible endpoint override flow to reapply after dotenv loading in pipeline startup.
+- [x] Re-run targeted tests and workspace validation gate.
+
+Evidence log:
+- IN_PROGRESS: task opened from review findings `[P1]` (deploy entrypoint missing after `ui:generate`) and `[P2]` (ineligible endpoint override not deterministic when `.env` defines `TLSN_ENDPOINT`).
+- RED: `moon run poc:test -- --run poc/tests/ui-spa.spec.ts -t "Given deploy workflow requirements When inspecting ui Moon tasks Then ui:deploy depends on ui:build"` failed because `ui/moon.yml` defines `ui:deploy` without a `deps` entry for `ui:build`.
+- RED: `moon run poc:test -- --run poc/tests/run-poc.spec.ts poc/tests/run-poc-ineligible.spec.ts -t "(Given endpoint override requirements When inspecting run-poc.sh Then dotenv loading can be followed by a TLSN endpoint override|Given dotenv loading rewrites TLSN_ENDPOINT When run-poc-ineligible.sh executes Then the ineligible override is reapplied for the pipeline)"` failed because `run-poc.sh` has no `RUN_POC_TLSN_ENDPOINT_OVERRIDE` contract and the ineligible wrapper output still showed `endpoint:/api/v1/employee/EMP-001` after dotenv loading in the pipeline stub.
+- GREEN: patched `ui/moon.yml` so `ui:deploy` now depends on `ui:build`, ensuring Wrangler’s `./.output/server/index.mjs` entrypoint exists in the documented deploy flow.
+- GREEN: patched `run-poc-ineligible.sh` to export `RUN_POC_TLSN_ENDPOINT_OVERRIDE` alongside `TLSN_ENDPOINT`, and patched `run-poc.sh` to reapply `TLSN_ENDPOINT` from `RUN_POC_TLSN_ENDPOINT_OVERRIDE` after `.env` loading.
+- GREEN: `moon run poc:test -- --run poc/tests/ui-spa.spec.ts -t "Given deploy workflow requirements When inspecting ui Moon tasks Then ui:deploy depends on ui:build"` passed.
+- GREEN: `moon run poc:test -- --run poc/tests/run-poc.spec.ts poc/tests/run-poc-ineligible.spec.ts -t "(Given endpoint override requirements When inspecting run-poc.sh Then dotenv loading can be followed by a TLSN endpoint override|Given dotenv loading rewrites TLSN_ENDPOINT When run-poc-ineligible.sh executes Then the ineligible override is reapplied for the pipeline)"` passed.
+- GREEN: `moon run workspace:validate` passed with `poc:test`, `ui:validate`, `mock-server:test`, and `tlsnotary:test` green.

@@ -23,6 +23,14 @@ describe("ui spa contracts", () => {
     expect(source).toMatch(/"directory"\s*:\s*"\.\/\.output\/public"/);
   });
 
+  it("Given deploy workflow requirements When inspecting ui Moon tasks Then ui:deploy depends on ui:build", () => {
+    const moonPath = resolve(process.cwd(), "ui/moon.yml");
+    expect(existsSync(moonPath)).toBe(true);
+
+    const source = readFileSync(moonPath, "utf8");
+    expect(source).toMatch(/deploy:\s*\n(?:\s+.*\n)*\s+deps:\s*\n\s+-\s*["']ui:build["']/m);
+  });
+
   it("Given mixed output directory names When selecting run directories Then only timestamp-formatted run directories are retained", async () => {
     const modulePath = resolve(process.cwd(), "ui/modules/proof-output-sync.ts");
     expect(existsSync(modulePath)).toBe(true);

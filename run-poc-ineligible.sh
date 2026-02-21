@@ -7,6 +7,7 @@ INELIGIBLE_ENDPOINT="${TLSN_INELIGIBLE_ENDPOINT:-/api/v1/employee/EMP-002}"
 ELIGIBILITY_FAILURE_PATTERN="${RUN_POC_INELIGIBLE_FAILURE_PATTERN:-(salary .* below required minimum|tenure .* below required minimum|status hash mismatch)}"
 
 export TLSN_ENDPOINT="$INELIGIBLE_ENDPOINT"
+export RUN_POC_TLSN_ENDPOINT_OVERRIDE="$INELIGIBLE_ENDPOINT"
 
 TMP_LOG="$(mktemp)"
 cleanup() {
