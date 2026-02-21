@@ -18,7 +18,7 @@ describe("ui reference parity", () => {
     );
 
     expect(source).toContain("Certificate Overview");
-    expect(source).toContain("View Full Cryptographic Record →");
+    expect(source).toContain("VIEW FULL CRYPTOGRAPHIC RECORD");
   });
 
   it("Given detail reference section labels When inspecting detail page source Then privacy-layer and full-record labels are present", () => {

@@ -48,6 +48,35 @@ exit 1
     expect(output).toContain("proof rejected as expected");
   });
 
+  it("Given an inherited eligible endpoint When run-poc-ineligible.sh executes Then it overrides TLSN_ENDPOINT to the ineligible endpoint", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "run-poc-ineligible-"));
+    const stubPath = createPipelineStub(
+      tempDir,
+      `#!/bin/bash
+set -euo pipefail
+echo "endpoint:\${TLSN_ENDPOINT:-unset}"
+echo "[run-poc] failed at step: poc:prove" >&2
+echo "[prove] failed: Error: salary 49000 is below required minimum 50000" >&2
+exit 1
+`,
+    );
+
+    const result = spawnSync("bash", ["run-poc-ineligible.sh"], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        TLSN_ENDPOINT: "/api/v1/employee/EMP-001",
+        RUN_POC_INELIGIBLE_PIPELINE_CMD: stubPath,
+      },
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+
+    const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+    expect(result.status).toBe(0);
+    expect(output).toContain("endpoint:/api/v1/employee/EMP-002");
+  });
+
   it("Given a failure outside prove stage When run-poc-ineligible.sh executes Then it exits with diagnostics", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "run-poc-ineligible-"));
     const stubPath = createPipelineStub(

@@ -13,13 +13,14 @@ describe("ui spa contracts", () => {
     expect(source).toMatch(/ssr\s*:\s*false/);
   });
 
-  it("Given Cloudflare Worker static deployment requirements When inspecting wrangler config Then SPA asset fallback is configured", () => {
+  it("Given Cloudflare Worker static deployment requirements When inspecting wrangler config Then worker entrypoint and static assets binding are configured", () => {
     const wranglerPath = resolve(process.cwd(), "ui/wrangler.jsonc");
     expect(existsSync(wranglerPath)).toBe(true);
 
     const source = readFileSync(wranglerPath, "utf8");
+    expect(source).toMatch(/"main"\s*:\s*"\.\/\.output\/server\/index\.mjs"/);
+    expect(source).toMatch(/"binding"\s*:\s*"ASSETS"/);
     expect(source).toMatch(/"directory"\s*:\s*"\.\/\.output\/public"/);
-    expect(source).toMatch(/"not_found_handling"\s*:\s*"single-page-application"/);
   });
 
   it("Given mixed output directory names When selecting run directories Then only timestamp-formatted run directories are retained", async () => {

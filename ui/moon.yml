@@ -19,10 +19,15 @@ tasks:
       cache: false
   test:
     command: "pnpm exec vitest run --config vitest.config.ts"
+  typecheck:
+    command: "pnpm exec nuxi typecheck"
   validate:
     deps:
       - "ui:test"
+      - "ui:typecheck"
       - "ui:generate"
+    options:
+      runDepsInParallel: false
   deploy:
     command: "pnpm exec wrangler deploy --config wrangler.jsonc"
     options:

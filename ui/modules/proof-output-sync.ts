@@ -72,16 +72,19 @@ export function selectTimestampRunDirs(entries: string[]): string[] {
 export function selectCompleteTimestampRunDirs(
   runEntries: Array<{ id: string; filesPresent: string[] }>,
 ): string[] {
-  return runEntries
-    .filter(
-      (entry) =>
-        TIMESTAMP_RUN_DIR_PATTERN.test(entry.id) &&
-        Array.from(MINIMUM_RENDERABLE_ARTIFACT_FILES).every((fileName) =>
-          entry.filesPresent.includes(fileName),
-        ),
-    )
-    .map((entry) => entry.id)
-    .sort((left, right) => right.localeCompare(left));
+  return Array.from(
+    new Set(
+      runEntries
+        .filter(
+          (entry) =>
+            TIMESTAMP_RUN_DIR_PATTERN.test(entry.id) &&
+            Array.from(MINIMUM_RENDERABLE_ARTIFACT_FILES).every((fileName) =>
+              entry.filesPresent.includes(fileName),
+            ),
+        )
+        .map((entry) => entry.id),
+    ),
+  ).sort((left, right) => right.localeCompare(left));
 }
 
 function createEmptyManifest(): ProofDataManifest {

@@ -47,10 +47,13 @@ interface ProofPayload {
   min_tenure_months?: number;
   current_date_unix_ms?: number;
   session_header_length_bytes?: number;
-  proof?: {
-    publicInput?: string[];
-    publicOutput?: string[];
-  };
+  proof?:
+    | {
+        publicInput?: string[];
+        publicOutput?: string[];
+        proof?: string;
+      }
+    | string;
 }
 
 interface VerificationKeyPayload {
@@ -61,6 +64,11 @@ interface DeployedAddressPayload {
   zkapp_public_key?: string;
   deploy_tx_hash?: string;
   verification_key_hash?: string;
+}
+
+interface SettlementPayload {
+  settlement_tx_hash?: string;
+  tx_hash?: string;
 }
 
 export interface ProofSummary {
@@ -81,6 +89,8 @@ export interface ProofRecord {
   proof: ProofPayload | null;
   verificationKey: VerificationKeyPayload | null;
   deployedAddress: DeployedAddressPayload | null;
+  settlement: SettlementPayload | null;
+  settlementTxHash: string | null;
 }
 
 const DEFAULT_MANIFEST: ProofDataManifest = {
@@ -95,8 +105,6 @@ const ARTIFACT_FILES = [
   "proof.json",
   "verification-key.json",
 ] as const;
-
-const TIMELINE_SECONDS_OFFSETS = [0, 5, 10, 12, 15, 16, 17] as const;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -149,6 +157,21 @@ export function deriveRunStatus(input: {
   return "unknown";
 }
 
+function deriveSettlementTxHash(settlement: SettlementPayload | null): string | null {
+  if (
+    typeof settlement?.settlement_tx_hash === "string" &&
+    settlement.settlement_tx_hash.length > 0
+  ) {
+    return settlement.settlement_tx_hash;
+  }
+
+  if (typeof settlement?.tx_hash === "string" && settlement.tx_hash.length > 0) {
+    return settlement.tx_hash;
+  }
+
+  return null;
+}
+
 function parseRunIdToDate(runId: string): Date | null {
   const match = runId.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})$/);
   if (!match) {
@@ -186,14 +209,6 @@ function formatUtcDateTime(date: Date): string {
   const second = pad2(date.getUTCSeconds());
 
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
-}
-
-function formatUtcTime(date: Date): string {
-  const hour = pad2(date.getUTCHours());
-  const minute = pad2(date.getUTCMinutes());
-  const second = pad2(date.getUTCSeconds());
-
-  return `${hour}:${minute}:${second}`;
 }
 
 export function runIdToDateLabel(runId: string): string {
@@ -256,25 +271,58 @@ async function fetchOptionalText(path: string): Promise<string | null> {
   }
 }
 
-export async function deriveProofArtifactHash(input: string): Promise<string> {
-  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
-  return Array.from(new Uint8Array(buffer))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function deriveDisplayProofHash({
-  proofText,
-  fallback,
-}: {
-  proofText: string | null;
-  fallback: string | null;
-}): Promise<string | null> {
-  if (proofText) {
-    return deriveProofArtifactHash(proofText);
+export function normalizeProofPayload(input: string | null): string | null {
+  if (typeof input !== "string") {
+    return null;
   }
 
-  return fallback;
+  const parsed = parseJsonText<unknown>(input);
+  if (parsed !== null) {
+    return JSON.stringify(parsed);
+  }
+
+  const trimmed = input.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function selectProofFieldValue(
+  status: ProofStatus,
+  normalizedProofValue: string | null,
+): string | null {
+  if (status === "failed") {
+    return null;
+  }
+
+  return normalizedProofValue;
+}
+
+function extractProofPublicOutput(proof: ProofPayload | null): string[] | undefined {
+  if (!proof?.proof || typeof proof.proof === "string") {
+    return undefined;
+  }
+
+  return proof.proof.publicOutput;
+}
+
+export function extractProofPreviewValue(proof: ProofPayload | null): string | null {
+  if (!proof?.proof) {
+    return null;
+  }
+
+  if (typeof proof.proof === "string") {
+    const trimmed = proof.proof.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof proof.proof.proof === "string") {
+    const trimmed = proof.proof.proof.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+
+  const serialized = JSON.stringify(proof.proof);
+  return serialized === "{}" ? null : serialized;
 }
 
 export async function loadManifest(): Promise<ProofDataManifest> {
@@ -290,19 +338,16 @@ export async function loadRunSummary(runId: string): Promise<ProofSummary> {
   ]);
 
   const proof = parseJsonText<ProofPayload>(proofText);
-
-  const proofHash = await deriveDisplayProofHash({
-    proofText,
-    fallback: disclosedFields?.data_commitment ?? proof?.proof?.publicInput?.[0] ?? null,
+  const status = deriveRunStatus({
+    publicOutput: extractProofPublicOutput(proof),
+    hasDisclosedFields: disclosedFields !== null,
   });
+  const proofHash = selectProofFieldValue(status, extractProofPreviewValue(proof));
 
   return {
     runId,
     runDate: runIdToDateLabel(runId),
-    status: deriveRunStatus({
-      publicOutput: proof?.proof?.publicOutput,
-      hasDisclosedFields: disclosedFields !== null,
-    }),
+    status,
     proofHash,
     network: "Zeko Testnet",
   };
@@ -311,28 +356,27 @@ export async function loadRunSummary(runId: string): Promise<ProofSummary> {
 export async function loadProofRecord(runId: string): Promise<ProofRecord> {
   const proofPath = `/proof-data/runs/${runId}/proof.json`;
 
-  const [attestation, disclosedFields, proofText, verificationKey, deployedAddress] =
+  const [attestation, disclosedFields, proofText, verificationKey, deployedAddress, settlement] =
     await Promise.all([
       fetchOptionalJson<AttestationPayload>(`/proof-data/runs/${runId}/attestation.json`),
       fetchOptionalJson<DisclosedFieldsPayload>(`/proof-data/runs/${runId}/disclosed-fields.json`),
       fetchOptionalText(proofPath),
       fetchOptionalJson<VerificationKeyPayload>(`/proof-data/runs/${runId}/verification-key.json`),
       fetchOptionalJson<DeployedAddressPayload>("/proof-data/deployed-address.json"),
+      fetchOptionalJson<SettlementPayload>(`/proof-data/runs/${runId}/settlement.json`),
     ]);
 
   const proof = parseJsonText<ProofPayload>(proofText);
-
-  const proofHash = await deriveDisplayProofHash({
-    proofText,
-    fallback: disclosedFields?.data_commitment ?? proof?.proof?.publicInput?.[0] ?? null,
+  const status = deriveRunStatus({
+    publicOutput: extractProofPublicOutput(proof),
+    hasDisclosedFields: disclosedFields !== null,
   });
+  const proofHash = selectProofFieldValue(status, extractProofPreviewValue(proof));
+  const settlementTxHash = deriveSettlementTxHash(settlement);
 
   return {
     runId,
-    status: deriveRunStatus({
-      publicOutput: proof?.proof?.publicOutput,
-      hasDisclosedFields: disclosedFields !== null,
-    }),
+    status,
     proofHash,
     evaluationDate:
       toDateLabelFromUnixMs(proof?.current_date_unix_ms) ??
@@ -343,6 +387,8 @@ export async function loadProofRecord(runId: string): Promise<ProofRecord> {
     proof,
     verificationKey,
     deployedAddress,
+    settlement,
+    settlementTxHash,
   };
 }
 
@@ -355,49 +401,3 @@ export function artifactEntries(run: ProofDataManifestRun) {
     href: `/proof-data/runs/${run.id}/${fileName}`,
   }));
 }
-
-const PIPELINE_STAGES = [
-  {
-    stage: "Mock Server Started",
-    description: "HTTPS fixture server with employment data",
-  },
-  {
-    stage: "TLSNotary Attestation",
-    description: "Notary witnessed TLS session with employer API",
-  },
-  {
-    stage: "Field Extraction",
-    description: "Disclosed fields extracted from attestation",
-  },
-  {
-    stage: "Data Commitment",
-    description: "Poseidon hash computed over field elements",
-  },
-  {
-    stage: "ZK Proof Generation",
-    description: "Employment eligibility circuit compiled and proved",
-  },
-  {
-    stage: "Proof Verification",
-    description: "Proof verified against verification key",
-  },
-  {
-    stage: "On-Chain Settlement",
-    description: "Proof and result settled to Zeko testnet",
-  },
-] as const;
-
-export function buildPipelineTimeline(runId: string) {
-  const runDate = parseRunIdToDate(runId);
-  const startDate = runDate ? new Date(runDate.getTime() - 17_000) : null;
-
-  return PIPELINE_STAGES.map((entry, index) => ({
-    ...entry,
-    time:
-      startDate === null
-        ? "--:--:--"
-        : formatUtcTime(new Date(startDate.getTime() + TIMELINE_SECONDS_OFFSETS[index] * 1_000)),
-  }));
-}
-
-export const PIPELINE_TIMELINE = buildPipelineTimeline("2026-02-19T04-24-17");

@@ -143,17 +143,23 @@ Fixed:
 
 The `ui/` project is a strict client-side Nuxt SPA (`ssr: false`) for browsing proof runs.
 
+Hosted deployment:
+- https://zkverify-poc-ui.zeko-labs.workers.dev/
+
 Data ingestion contract:
 - A custom Nuxt module copies timestamped run folders from `output/<timestamp>/` into `ui/public/proof-data/runs/<timestamp>/`.
 - The module also copies `output/deployed-address.json` into `ui/public/proof-data/deployed-address.json` when present.
 - `ui/public/proof-data/manifest.json` is generated at Nuxt startup/build.
 - No server rendering is used; refresh copied data by restarting `moon run ui:dev`.
 
-Run locally:
+Run locally (pipeline first):
 
 ```bash
+moon run workspace:run
 moon run ui:dev
 ```
+
+The UI reads copied artifacts from `output/`, so you must run the pipeline before starting `ui:dev` to see proof data in the local UI.
 
 Build static assets:
 

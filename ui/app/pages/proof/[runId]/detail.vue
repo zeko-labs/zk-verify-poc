@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import {
-  artifactEntries,
-  buildPipelineTimeline,
-  loadManifest,
-  loadProofRecord,
-} from "~~/lib/proof-data";
+import { artifactEntries, loadManifest, loadProofRecord } from "~~/lib/proof-data";
 
 const route = useRoute();
 
@@ -88,13 +83,16 @@ const attestationItems = computed(() => {
       label: "Notary Public Key",
       value:
         attestation?.notary_public_key?.x_hex && attestation?.notary_public_key?.y_hex
-          ? `${attestation.notary_public_key.x_hex.slice(0, 24)}...`
+          ? `x: ${attestation.notary_public_key.x_hex}\ny: ${attestation.notary_public_key.y_hex}`
           : "N/A",
       mono: true,
     },
     {
       label: "ECDSA Signature",
-      value: attestation?.signature?.r_hex ? `${attestation.signature.r_hex.slice(0, 24)}...` : "N/A",
+      value:
+        attestation?.signature?.r_hex && attestation?.signature?.s_hex
+          ? `r: ${attestation.signature.r_hex}\ns: ${attestation.signature.s_hex}`
+          : "N/A",
       mono: true,
     },
   ];
@@ -139,7 +137,19 @@ const zkItems = computed(() => {
 const onChainItems = computed(() => {
   const deployed = data.value?.record.deployedAddress;
   const zkAppAddress = deployed?.zkapp_public_key ?? null;
-  const txHash = deployed?.deploy_tx_hash ?? null;
+  const settlementTxHash = data.value?.record.settlementTxHash ?? null;
+  const deployTxHash = deployed?.deploy_tx_hash ?? null;
+  const fullProofValue = data.value?.record.proofHash ?? null;
+  const deployTxHref =
+    deployTxHash && deployTxHash !== "already-deployed"
+      ? `https://zekoscan.io/testnet/tx/${deployTxHash}`
+      : undefined;
+
+  const truncatedProofValue = fullProofValue
+    ? fullProofValue.length <= 140
+      ? fullProofValue
+      : `${fullProofValue.slice(0, 108)}...${fullProofValue.slice(-24)}`
+    : "";
 
   return [
     {
@@ -157,20 +167,84 @@ const onChainItems = computed(() => {
     },
     {
       label: "Settlement Tx Hash",
-      value: txHash ?? "N/A",
-      href: txHash ? `https://zekoscan.io/testnet/tx/${txHash}` : undefined,
+      value: settlementTxHash ?? "N/A",
+      href: settlementTxHash ? `https://zekoscan.io/testnet/tx/${settlementTxHash}` : undefined,
       external: true,
       mono: true,
     },
     {
-      label: "Proof Hash",
-      value: data.value?.record.proofHash ?? "N/A",
+      label: "Deploy Tx Hash",
+      value: deployTxHash ?? "N/A",
+      href: deployTxHref,
+      external: true,
+      mono: true,
+    },
+    {
+      label: "Proof",
+      value: truncatedProofValue,
+      copyValue: fullProofValue ?? undefined,
       mono: true,
     },
   ];
 });
 
-const timelineItems = computed(() => buildPipelineTimeline(runId.value));
+const pipelineSteps = computed(() => {
+  if (data.value?.record.status === "failed") {
+    return [
+      {
+        title: "Mock Server Response",
+        description: "Fixture employee data was served over HTTPS for attestation capture.",
+      },
+      {
+        title: "TLSNotary Attestation",
+        description: "The notary witnessed and signed the employer API response transcript.",
+      },
+      {
+        title: "Disclosed Fields Extraction",
+        description: "Required policy fields were extracted without exposing raw payload internals.",
+      },
+      {
+        title: "Eligibility Evaluation",
+        description: "Policy constraints evaluated this run as ineligible.",
+      },
+      {
+        title: "Proof Generation",
+        description: "Proof generation was skipped because eligibility requirements were not met.",
+      },
+      {
+        title: "Failure Output",
+        description: "Failure artifacts were retained for auditing and troubleshooting.",
+      },
+    ];
+  }
+
+  return [
+    {
+      title: "Mock Server Response",
+      description: "Fixture employee data was served over HTTPS for attestation capture.",
+    },
+    {
+      title: "TLSNotary Attestation",
+      description: "The notary witnessed and signed the employer API response transcript.",
+    },
+    {
+      title: "Disclosed Fields Extraction",
+      description: "Required policy fields were extracted and normalized for the circuit witness.",
+    },
+    {
+      title: "Eligibility Proof Generation",
+      description: "Zero-knowledge proof was generated for the employment eligibility circuit.",
+    },
+    {
+      title: "Proof Verification",
+      description: "Proof validity was checked against the verification key and public inputs.",
+    },
+    {
+      title: "On-Chain Settlement",
+      description: "Verification result was anchored to Zeko Testnet for public auditability.",
+    },
+  ];
+});
 </script>
 
 <template>
@@ -231,9 +305,14 @@ const timelineItems = computed(() => buildPipelineTimeline(runId.value));
         </details>
 
         <details class="detail-block">
-          <summary>6. Pipeline Timeline</summary>
+          <summary>6. Pipeline Steps</summary>
           <div class="detail-content">
-            <PipelineTimeline :items="timelineItems" />
+            <ol class="pipeline-steps">
+              <li v-for="item in pipelineSteps" :key="item.title" class="pipeline-step">
+                <p class="pipeline-step-title">{{ item.title }}</p>
+                <p class="pipeline-step-description">{{ item.description }}</p>
+              </li>
+            </ol>
           </div>
         </details>
 
@@ -247,3 +326,165 @@ const timelineItems = computed(() => buildPipelineTimeline(runId.value));
     </section>
   </main>
 </template>
+
+<style scoped>
+.content-page {
+  min-height: 100vh;
+  padding: 2.2rem 2.5rem 4rem;
+}
+
+.content-container {
+  margin: 0 auto;
+  max-width: 1240px;
+}
+
+.detail-shell {
+  max-width: 900px;
+}
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  margin-bottom: 1.35rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.98rem;
+}
+
+.crumb-link {
+  color: var(--accent);
+}
+
+.crumb-current {
+  color: #95a9c6;
+}
+
+.crumb-separator {
+  color: #7589a8;
+}
+
+.panel-message {
+  margin-top: 1.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(13, 22, 36, 0.9);
+  color: var(--text-muted);
+  padding: 1.1rem 1.25rem;
+}
+
+.record-title {
+  margin: 0 0 1.55rem;
+  border-bottom: 1px solid #284363;
+  padding-bottom: 1rem;
+  font-size: 2.9rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.detail-stack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.detail-block {
+  overflow: hidden;
+  border: 1px solid #284363;
+  border-radius: 10px;
+  background: rgba(18, 31, 50, 0.9);
+}
+
+.detail-block summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  cursor: pointer;
+  font-size: 1.02rem;
+  font-weight: 600;
+  padding: 1.08rem 1.2rem;
+}
+
+.detail-block summary::-webkit-details-marker {
+  display: none;
+}
+
+.detail-block summary::after {
+  content: "-";
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.detail-block[open] > summary {
+  border-bottom: 1px solid #284363;
+}
+
+.detail-content {
+  padding: 1.08rem 1.2rem 1.22rem;
+}
+
+.privacy-box {
+  display: grid;
+  gap: 0.78rem;
+  border: 1px solid #284363;
+  border-radius: 8px;
+  background: rgba(7, 12, 22, 0.52);
+  color: var(--text-muted);
+  padding: 1rem;
+}
+
+.privacy-box p {
+  margin: 0;
+}
+
+.privacy-box strong {
+  color: #d8e2f2;
+}
+
+.pipeline-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.72rem;
+}
+
+.pipeline-step {
+  border: 1px solid #284363;
+  border-radius: 8px;
+  background: rgba(7, 12, 22, 0.5);
+  padding: 0.88rem 0.95rem;
+}
+
+.pipeline-step-title {
+  margin: 0;
+  color: #dbe5f4;
+  font-weight: 600;
+}
+
+.pipeline-step-description {
+  margin: 0.28rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.94rem;
+}
+
+@media (max-width: 1024px) {
+  .content-page {
+    padding: 1.4rem 1.1rem 2.25rem;
+  }
+
+  .detail-shell {
+    max-width: 100%;
+  }
+
+  .record-title {
+    font-size: 2.05rem;
+  }
+
+  .detail-content {
+    padding: 0.9rem;
+  }
+}
+</style>

@@ -1,6 +1,6 @@
 # TASKLIST
 
-Last updated: 2026-02-19
+Last updated: 2026-02-21
 Status legend: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`
 
 ## Usage Contract (Mandatory)
@@ -12,8 +12,8 @@ Status legend: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`
 
 ## Active Pointer
 - `NEXT_TASK_ID`: `T-212`
-- Current owner status: `IN_PROGRESS`
-- Resume location: `T-212` ineligible-user full pipeline task implementation pending.
+- Current owner status: `BLOCKED`
+- Resume location: `T-212` ineligible-user full pipeline task (blocked until workspace-wide green verification is rerun).
 
 ## Verified Baseline (Already Green)
 - [x] `DONE` `T-001` Fresh repo initialized and core structure created.
@@ -381,3 +381,203 @@ Evidence log:
 - GREEN: `moon run ui:test` passed (`15/15` tests).
 - GREEN: `moon run ui:validate` passed.
 - GREEN: `moon run workspace:validate` first failed with `ui:generate` `ENOTEMPTY` race while `ui:dev` was running, then passed after stopping `ui:dev` and rerunning validation.
+
+### `T-215` Remove dead timeline export in UI data layer
+Status: `DONE`
+Goal: remove unused `PIPELINE_TIMELINE` export from `ui/lib/proof-data.ts` now that timeline rendering uses `buildPipelineTimeline(runId)` dynamically.
+
+RED checklist:
+- [x] Add failing test that guards against exporting unused static `PIPELINE_TIMELINE`.
+
+GREEN checklist:
+- [x] Remove static `PIPELINE_TIMELINE` export from proof-data module.
+- [x] Re-run `moon run ui:test` and `moon run ui:validate`.
+
+Evidence log:
+- RED: `moon run ui:test` failed in `ui/tests/ui-contracts.spec.ts` because `ui/lib/proof-data.ts` still exports `PIPELINE_TIMELINE` despite timeline rendering already using `buildPipelineTimeline(runId)` dynamically.
+- GREEN: removed dead export `PIPELINE_TIMELINE` from `ui/lib/proof-data.ts`; dynamic timeline generation remains via `buildPipelineTimeline(runId)`.
+- GREEN: `moon run ui:test` passed (`16/16` tests).
+- GREEN: `moon run ui:validate` passed.
+
+### `T-216` Reviewer follow-up: settlement metadata correctness + deterministic ineligible endpoint
+Status: `DONE`
+Goal: resolve reviewer findings by preventing deployment metadata from being displayed as settlement metadata and by forcing the ineligible endpoint during negative-flow runs.
+
+RED checklist:
+- [x] Add failing test showing `run-poc-ineligible.sh` must override inherited `TLSN_ENDPOINT` and force the ineligible endpoint.
+- [x] Add failing UI test showing settlement transaction display/data does not source from `deploy_tx_hash`.
+
+GREEN checklist:
+- [x] Patch `run-poc-ineligible.sh` to always set `TLSN_ENDPOINT` from `TLSN_INELIGIBLE_ENDPOINT` (or its default).
+- [x] Patch UI proof data/detail rendering to separate deployment tx metadata from settlement tx metadata.
+- [x] Re-run `moon run poc:test`, `moon run ui:test`, `moon run ui:validate`, and `moon run workspace:validate`.
+
+Evidence log:
+- IN_PROGRESS: task opened to implement review findings `[P1]` and `[P2]`.
+- RED: `moon run poc:test -- --run poc/tests/run-poc-ineligible.spec.ts -t "Given an inherited eligible endpoint When run-poc-ineligible.sh executes Then it overrides TLSN_ENDPOINT to the ineligible endpoint"` failed because output showed `endpoint: /api/v1/employee/EMP-001` (inherited env) instead of forced ineligible endpoint.
+- RED: `moon run ui:test -- --run tests/ui-contracts.spec.ts -t "Given settlement metadata requirements When inspecting proof record contracts Then settlement tx data is not sourced from deploy_tx_hash"` failed because `ui/lib/proof-data.ts` does not read `settlement.json` and `ui/app/pages/proof/[runId]/detail.vue` still binds settlement display to deploy metadata.
+- GREEN: patched `run-poc-ineligible.sh` to export `TLSN_ENDPOINT` unconditionally from `TLSN_INELIGIBLE_ENDPOINT` (default `/api/v1/employee/EMP-002`) so inherited environment values cannot redirect the negative flow.
+- GREEN: patched `ui/lib/proof-data.ts` to load optional per-run `settlement.json` and derive `settlementTxHash`, and patched `ui/app/pages/proof/[runId]/detail.vue` to display `Settlement Tx Hash` from settlement metadata while labeling deployment metadata as `Deploy Tx Hash`.
+- GREEN: `moon run poc:test -- --run poc/tests/run-poc-ineligible.spec.ts -t "Given an inherited eligible endpoint When run-poc-ineligible.sh executes Then it overrides TLSN_ENDPOINT to the ineligible endpoint"` passed.
+- GREEN: `moon run ui:test -- --run tests/ui-contracts.spec.ts -t "Given settlement metadata requirements When inspecting proof record contracts Then settlement tx data is not sourced from deploy_tx_hash"` passed.
+- GREEN: `moon run ui:test` passed (`17/17` tests).
+- GREEN: `moon run ui:validate` passed.
+- GREEN: temporary workspace blockage from `poc/tests/ui-spa.spec.ts` was cleared in follow-up task `T-218`; `moon run poc:test` and `moon run workspace:validate` now pass with reviewer-fix coverage intact.
+
+### `T-217` Ineligible overview messaging + proof-field copy UX
+Status: `DONE`
+Goal: make ineligible certificate overview copy explicitly state non-eligibility, and replace proof-hash display with truncated full-proof text + copy-to-clipboard behavior while leaving proof empty for ineligible runs.
+
+RED checklist:
+- [x] Add failing tests for ineligible-specific overview copy.
+- [x] Add failing tests for proof field copy UX contracts (`Copy Full Proof` + clipboard usage).
+- [x] Add failing tests for ineligible proof field empty-state behavior and proof payload normalization contract.
+
+GREEN checklist:
+- [x] Implement ineligible conditional messaging in overview page.
+- [x] Implement truncated full-proof display + copy button behavior.
+- [x] Ensure ineligible status clears proof field values.
+- [x] Re-run `moon run ui:test` and `moon run ui:validate`.
+
+Evidence log:
+- RED: `moon run ui:test` failed in `ui/tests/ui-contracts.spec.ts` with 4 expected failures: missing `normalizeProofPayload` export, missing ineligible-specific overview copy (`does not satisfy eligibility policy requirements`), missing proof-field copy UX (`Copy Full Proof` + clipboard API usage), and missing `selectProofFieldValue` helper for empty ineligible proof-field behavior.
+- GREEN: added proof payload helpers `normalizeProofPayload` and `selectProofFieldValue` in `ui/lib/proof-data.ts`; proof values now use normalized full-proof payload text and are explicitly empty for failed/ineligible status.
+- GREEN: updated `ui/app/pages/proof/[runId]/index.vue` with ineligible-specific subtitle/card copy and proof-field copy UX (`Copy Full Proof` via `navigator.clipboard.writeText`).
+- GREEN: updated `ui/app/components/KeyValueGrid.vue`, `ui/app/pages/proof/[runId]/detail.vue`, `ui/app/pages/index.vue`, and `ui/app/assets/css/main.css` for truncated proof display, copy controls, and empty ineligible proof-field rendering.
+- GREEN: renamed UI labels from `Proof Hash` to `Proof` in directory, overview, and full-record views to match the full-proof (truncated) semantics.
+- GREEN: `moon run ui:test` passed (`20/20` tests).
+- GREEN: `moon run ui:validate` passed.
+
+### `T-218` Wrangler contract test correction
+Status: `DONE`
+Goal: correct the `poc/tests/ui-spa.spec.ts` wrangler assertion so tests validate the currently supported worker/static config contract instead of requiring unsupported `assets.not_found_handling`.
+
+RED checklist:
+- [x] Reproduce failing wrangler contract test in `poc/tests/ui-spa.spec.ts`.
+
+GREEN checklist:
+- [x] Update `poc/tests/ui-spa.spec.ts` wrangler assertion to match current valid `ui/wrangler.jsonc`.
+- [x] Re-run `moon run poc:test` and `moon run workspace:validate`.
+
+Evidence log:
+- IN_PROGRESS: task opened from user direction that the current `ui/wrangler.jsonc` is correct and test assumptions must be updated.
+- RED: `moon run poc:test -- --run poc/tests/ui-spa.spec.ts -t "Given Cloudflare Worker static deployment requirements When inspecting wrangler config Then SPA asset fallback is configured"` failed because the test requires `"not_found_handling": "single-page-application"` while `ui/wrangler.jsonc` intentionally defines only `assets.binding` and `assets.directory` with the current Nuxt worker/static setup.
+- GREEN: updated `poc/tests/ui-spa.spec.ts` wrangler contract to assert current valid fields (`main`, `assets.binding`, and `assets.directory`) and removed the unsupported `not_found_handling` assumption.
+- GREEN: `moon run poc:test` passed (`35/35` tests).
+- GREEN: `moon run workspace:validate` passed.
+
+### `T-219` UI parity polish for ineligible/eligible state handling + page-local CSS + typecheck gate
+Status: `DONE`
+Goal: align overview and detail UX contracts for eligible vs ineligible proof states, simplify proof-copy affordance, fix directory row alignment edge-cases, replace timeline timestamps with status-aware ordered steps, move per-page CSS into page-local style blocks, and ensure UI typecheck is enforced via Moon.
+
+RED checklist:
+- [x] Add failing UI contract tests for status-aware overview card highlighting and CTA style contract.
+- [x] Add failing UI contract tests for clipboard-icon proof-copy affordance and proof label usage.
+- [x] Add failing UI contract tests for ordered pipeline list contract (no timestamps) with ineligible-specific steps.
+- [x] Add failing UI contract tests that assert per-page `<style>` blocks in route components.
+- [x] Add failing Moon/UI config tests that assert `ui:typecheck` exists and is part of `ui:validate`.
+
+GREEN checklist:
+- [x] Patch overview page card states, CTA styling, and proof copy icon interaction.
+- [x] Patch directory row layout for stable alignment across failed/ineligible rows.
+- [x] Replace detail timeline component usage with ordered list content that branches by eligibility status.
+- [x] Move page-level CSS from global stylesheet into per-page style blocks.
+- [x] Add Moon target for `ui:typecheck` and include it in validation.
+- [x] Re-run `moon run ui:test` and `moon run ui:validate`.
+
+Evidence log:
+- IN_PROGRESS: task opened for requested UI parity and maintainability pass.
+- RED: `moon run ui:test` failed with 9 expected failures across `ui/tests/ui-reference-parity.spec.ts` and `ui/tests/ui-contracts.spec.ts`: missing uppercase centered CTA copy, missing status-aware trust-card tone logic, missing icon-only proof-copy button contract, detail page still using timestamp timeline component instead of ordered steps (including missing ineligible-step copy), missing per-page `<style>` blocks with page selectors still in `ui/app/assets/css/main.css`, and missing `ui:typecheck` task dependency in `ui/moon.yml`.
+- GREEN: updated `ui/app/pages/proof/[runId]/index.vue` with status-aware trust-card border tones (eligible: all green, ineligible: card 1 green and cards 2/3 red), icon-only clipboard copy button, and centered uppercase CTA styling.
+- GREEN: updated `ui/app/pages/index.vue` grid tracks to fixed `minmax(0, ...)` column sizing for deterministic row alignment across eligible/ineligible rows and moved directory CSS into a page-local `<style>` block.
+- GREEN: updated `ui/app/pages/proof/[runId]/detail.vue` to remove timestamp timeline rendering and replace section 6 with ordered pipeline steps that branch for ineligible runs (including explicit proof-skip and failure-artifact retention steps).
+- GREEN: moved component/page CSS out of `ui/app/assets/css/main.css` into local style blocks (`ui/app/pages/index.vue`, `ui/app/pages/proof/[runId]/index.vue`, `ui/app/pages/proof/[runId]/detail.vue`, `ui/app/app.vue`, `ui/app/components/StatusBadge.vue`, `ui/app/components/KeyValueGrid.vue`, `ui/app/components/ArtifactLinks.vue`) and deleted unused `ui/app/components/PipelineTimeline.vue`.
+- GREEN: added `ui:typecheck` task in `ui/moon.yml` (`pnpm exec nuxi typecheck`), wired `ui:validate` dependencies to include `ui:typecheck`, and set `tasks.validate.options.runDepsInParallel: false` to avoid proof-output sync races between `ui:typecheck` and `ui:generate`.
+- GREEN: `moon run ui:test` passed (`26/26` tests).
+- GREEN: `moon run ui:validate` initially failed with sync races (`ENOENT`/`ENOTEMPTY` in `ui/public/proof-data`) while deps executed concurrently, then passed after serializing validate deps (`ui:test`, `ui:typecheck`, `ui:generate`).
+
+### `T-220` Proof semantics follow-up: attestation full values + proof-property preview
+Status: `DONE`
+Goal: clarify tx-hash semantics in detail output context, show full notary key/signature values with line breaks (no truncation), and make certificate/detail proof preview derive from the proof property instead of the full JSON object.
+
+RED checklist:
+- [x] Add failing tests for proof-preview extraction from proof payload property.
+- [x] Add failing tests for detail attestation field rendering without truncation.
+- [x] Add failing tests for multiline rendering support in key-value rows.
+
+GREEN checklist:
+- [x] Implement proof-property extraction in UI data layer and wire preview/copy values.
+- [x] Remove notary key and ECDSA signature truncation and format values with line breaks.
+- [x] Update key-value rendering styles to preserve multiline line-breaks.
+- [x] Re-run `moon run ui:test` and `moon run ui:validate`.
+
+Evidence log:
+- IN_PROGRESS: task opened for requested proof semantics and detail attestation formatting corrections.
+- RED: `moon run ui:test` failed with 3 expected failures in `ui/tests/ui-contracts.spec.ts`: missing `extractProofPreviewValue` helper export for proof-property sourcing, detail attestation still truncates notary key and signature via `.slice(...)`, and `ui/app/components/KeyValueGrid.vue` does not preserve multiline values (`class="kv-text"` + `white-space: pre-wrap` missing).
+- GREEN: added `extractProofPreviewValue` and `extractProofPublicOutput` in `ui/lib/proof-data.ts`; `loadRunSummary` and `loadProofRecord` now source proof preview/copy data from the proof payload property (`proof.proof` preferred, serialized `proof` object fallback) while preserving ineligible empty-state via `selectProofFieldValue`.
+- GREEN: updated `ui/app/pages/proof/[runId]/detail.vue` attestation entries to render full notary key/signature values (`x/y` and `r/s`) on separate lines without truncation.
+- GREEN: updated `ui/app/components/KeyValueGrid.vue` with `kv-text` multiline rendering (`white-space: pre-wrap`) so long detail values wrap naturally in expanded sections.
+- GREEN: `moon run ui:test` passed (`29/29` tests).
+- GREEN: `moon run ui:validate` passed (`ui:test`, `ui:typecheck`, `ui:generate`).
+
+### `T-221` Directory proof-slice readability + duplicate run dedupe
+Status: `DONE`
+Goal: ensure homepage proof previews visibly show both prefix and suffix segments, and eliminate duplicate run entries when duplicate timestamp run IDs are encountered.
+
+RED checklist:
+- [x] Add failing tests for duplicate complete-run dedupe behavior in output-sync selection.
+- [x] Add failing tests for homepage proof rendering contract that shows explicit prefix/suffix slices.
+
+GREEN checklist:
+- [x] Implement duplicate run-id dedupe in output-sync selection.
+- [x] Implement directory proof-slice rendering that preserves visible prefix and suffix segments.
+- [x] Remove duplicated source run entry when duplicate timestamp directories are detected.
+- [x] Re-run `moon run ui:test` and `moon run ui:validate`.
+
+Evidence log:
+- IN_PROGRESS: task opened for homepage proof readability and duplicate run cleanup request.
+- RED: `moon run ui:test` failed with 2 expected failures in `ui/tests/ui-contracts.spec.ts`: `selectCompleteTimestampRunDirs` currently returns duplicate IDs when duplicate complete run entries are present, and `ui/app/pages/index.vue` still uses single-string truncation instead of explicit prefix/suffix proof slices.
+- GREEN: updated `ui/modules/proof-output-sync.ts` so `selectCompleteTimestampRunDirs` dedupes run IDs using a `Set` before sorting, preventing duplicate run entries from being copied/rendered.
+- GREEN: updated `ui/app/pages/index.vue` proof rendering to split previews into explicit `proof-prefix ... proof-suffix` segments (`splitProofValue`) instead of a single ellipsized string.
+- GREEN: scanned `output/` timestamp directories for duplicate timestamps and executed cleanup routine; current dataset contains no duplicate timestamps (`duplicates: []`, `removed: []`), so no source directory deletion was required.
+- GREEN: `moon run ui:test` passed (`31/31` tests).
+- GREEN: `moon run ui:validate` passed (`ui:test`, `ui:typecheck`, `ui:generate`).
+
+### `T-222` Directory proof availability indicator (`✓` / `✕`)
+Status: `DONE`
+Goal: replace directory proof text previews with a simple proof-presence indicator (`✓`) and proof-absence indicator (`✕`) for clearer scanability.
+
+RED checklist:
+- [x] Add failing tests for directory proof availability marker rendering.
+
+GREEN checklist:
+- [x] Replace proof split/truncation rendering in directory rows with availability symbols.
+- [x] Re-run `moon run ui:test` and `moon run ui:validate`.
+
+Evidence log:
+- IN_PROGRESS: task opened for directory proof indicator simplification.
+- RED: `moon run ui:test` failed in `ui/tests/ui-contracts.spec.ts` because `ui/app/pages/index.vue` still renders split proof text and does not yet contain the proof availability marker contract (`run.proofHash ? "✓" : "✕"` with `proof-indicator` states).
+- GREEN: updated `ui/app/pages/index.vue` to replace proof split preview rendering with an availability marker (`✓` when `run.proofHash` is present, `✕` when absent) using `proof-indicator.is-present` / `proof-indicator.is-missing` styles.
+- GREEN: removed obsolete `splitProofValue` proof-slice helper and related split-preview markup/styles from the directory page.
+- GREEN: `moon run ui:test` passed (`31/31` tests).
+- GREEN: `moon run ui:validate` passed (`ui:test`, `ui:typecheck`, `ui:generate`).
+
+### `T-223` Directory proof-column removal + mobile layout refinement
+Status: `DONE`
+Goal: remove the proof column entirely from directory view and improve mobile row readability with clearer per-field labeling and card-style row treatment.
+
+RED checklist:
+- [x] Add failing tests asserting proof column/indicator removal from directory markup.
+- [x] Add failing tests asserting improved mobile row layout hooks/styles exist.
+
+GREEN checklist:
+- [x] Remove proof header/cell rendering and related styles from `ui/app/pages/index.vue`.
+- [x] Improve mobile layout with field labels and row card styling for easier scanability.
+- [x] Re-run `moon run ui:test` and `moon run ui:validate`.
+
+Evidence log:
+- IN_PROGRESS: task opened for requested directory proof-column removal and mobile layout improvements.
+- RED: `moon run ui:test` failed with 2 expected contract failures in `ui/tests/ui-contracts.spec.ts` because directory markup still exposed proof-specific contracts and lacked the requested mobile layout hooks/styles.
+- GREEN: updated `ui/app/pages/index.vue` to remove the proof column entirely, keep a four-column grid (`status/circuit/date/network`), and render mobile field labels + card-style row treatment at `@media (max-width: 1024px)`.
+- GREEN: `moon run ui:test` passed (`32/32` tests).
+- GREEN: `moon run ui:validate` passed (`ui:test`, `ui:typecheck`, `ui:generate`).
