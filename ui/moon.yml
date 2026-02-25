@@ -10,8 +10,6 @@ tasks:
       cache: false
   build:
     command: "pnpm exec nuxi build"
-  generate:
-    command: "pnpm exec nuxi generate"
   preview:
     command: "pnpm exec nuxi preview"
     preset: "server"
@@ -25,7 +23,7 @@ tasks:
     deps:
       - "ui:test"
       - "ui:typecheck"
-      - "ui:generate"
+      - "ui:build"
     options:
       runDepsInParallel: false
   deploy:

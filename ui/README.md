@@ -20,7 +20,7 @@ moon run ui:dev
 ## Build static assets
 
 ```bash
-moon run ui:generate
+moon run ui:build
 ```
 
 ## Cloudflare worker static deploy

@@ -176,7 +176,7 @@ The UI reads copied artifacts from `output/`, so you must run the pipeline befor
 Build static assets:
 
 ```bash
-moon run ui:generate
+moon run ui:build
 ```
 
 UI routes:

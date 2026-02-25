@@ -5,6 +5,9 @@ export default defineNuxtConfig({
   nitro: {
     preset: "cloudflare-module",
   },
+  routeRules: {
+    "/**": { prerender: true },
+  },
   devtools: { enabled: false },
   css: ["~/assets/css/main.css"],
   modules: ["./modules/proof-output-sync"],
