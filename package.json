@@ -11,6 +11,8 @@
     "o1js": "catalog:"
   },
   "devDependencies": {
+    "@swc-node/register": "catalog:",
+    "@swc/core": "catalog:",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
     "lefthook": "catalog:",
@@ -20,5 +22,13 @@
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
-  "packageManager": "pnpm@10.30.0"
+  "packageManager": "pnpm@10.30.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "sharp",
+      "workerd",
+      "@swc/core"
+    ]
+  }
 }

@@ -5,6 +5,7 @@ projects:
   poc: 'poc'
   mock-server: 'mock-server'
   tlsnotary: 'tlsnotary'
+  ui: 'ui'
 
 pipeline:
   installDependencies: true

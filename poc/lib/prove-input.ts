@@ -16,6 +16,7 @@ export interface DisclosedFieldsProofInput {
   salary: number;
   hire_date_unix: number;
   status_hash: string;
+  response_body_hash: string;
   data_commitment: string;
   ecdsa_signature: {
     r: string;
@@ -124,6 +125,7 @@ export function validateProofInputIntegrity(
     salary: requireSafeInteger(input.salary, "salary"),
     hire_date_unix: requireSafeInteger(input.hire_date_unix, "hire_date_unix"),
     status_hash: requireFieldString(input.status_hash, "status_hash"),
+    response_body_hash: requireFieldString(input.response_body_hash, "response_body_hash"),
     data_commitment: requireFieldString(input.data_commitment, "data_commitment"),
     ecdsa_signature: {
       r: normalizeHex(input.ecdsa_signature?.r, "ecdsa_signature.r", 32),
@@ -137,10 +139,12 @@ export function validateProofInputIntegrity(
   };
 
   const statusHashField = Field(normalized.status_hash);
+  const responseBodyHashField = Field(normalized.response_body_hash);
   const computedDataCommitment = commitmentHash(
     normalized.salary,
     normalized.hire_date_unix,
     statusHashField,
+    responseBodyHashField,
   ).toString();
 
   if (computedDataCommitment !== normalized.data_commitment) {

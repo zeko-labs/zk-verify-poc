@@ -8,6 +8,11 @@ export function hashUtf8StringPoseidon(value: string): Field {
   return Poseidon.hash(utf8BytesToFields(value));
 }
 
-export function commitmentHash(salary: number, hireDateUnixMs: number, statusHash: Field): Field {
-  return Poseidon.hash([Field(salary), Field(hireDateUnixMs), statusHash]);
+export function commitmentHash(
+  salary: number,
+  hireDateUnixMs: number,
+  statusHash: Field,
+  responseBodyHash: Field,
+): Field {
+  return Poseidon.hash([Field(salary), Field(hireDateUnixMs), statusHash, responseBodyHash]);
 }

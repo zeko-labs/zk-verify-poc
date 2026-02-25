@@ -19,6 +19,22 @@ export const EMPLOYEE_RECORD = {
   employer_name: "Acme Corp",
 };
 
+export const INELIGIBLE_EMPLOYEE_RECORD = {
+  employee_id: "EMP-002",
+  first_name: "Alex",
+  last_name: "Smith",
+  ssn_last4: "5678",
+  employment_status: "active",
+  hire_date: "2023-06-15",
+  annual_salary: 49000,
+  employer_name: "Acme Corp",
+};
+
+const EMPLOYEE_RECORDS = {
+  [EMPLOYEE_RECORD.employee_id]: EMPLOYEE_RECORD,
+  [INELIGIBLE_EMPLOYEE_RECORD.employee_id]: INELIGIBLE_EMPLOYEE_RECORD,
+} as const;
+
 const DEFAULT_PORT = 4443;
 const FILE_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -65,12 +81,18 @@ export function startMockServer(options?: number | StartMockServerOptions): void
   const serverOptions = createTlsServerOptions(tlsOptions);
 
   const server = createServer(serverOptions, (req, res) => {
-    if (req.method === "GET" && req.url === "/api/v1/employee/EMP-001") {
+    const routeMatch = req.url?.match(/^\/api\/v1\/employee\/([A-Za-z0-9-]+)$/);
+    const employeeId = routeMatch?.[1];
+    const employeeRecord = employeeId
+      ? EMPLOYEE_RECORDS[employeeId as keyof typeof EMPLOYEE_RECORDS]
+      : undefined;
+
+    if (req.method === "GET" && employeeRecord) {
       res.writeHead(200, {
         "content-type": "application/json",
         connection: "close",
       });
-      res.end(JSON.stringify(EMPLOYEE_RECORD));
+      res.end(JSON.stringify(employeeRecord));
       return;
     }
 

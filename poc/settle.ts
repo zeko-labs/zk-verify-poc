@@ -1,7 +1,8 @@
-import { Field, Mina, Poseidon, PrivateKey, PublicKey, fetchAccount } from "o1js";
+import { AccountUpdate, Field, Mina, Poseidon, PrivateKey, PublicKey, fetchAccount } from "o1js";
 
 import { EligibilityProgram, EligibilityProof } from "./circuits/eligibility.js";
 import { VerificationRegistry } from "./contracts/VerificationRegistry.js";
+import { writeDeployedAddressMetadata } from "./lib/deploy-metadata.js";
 import { loadRuntimeEnv } from "./lib/env.js";
 import { readJsonFile } from "./lib/io.js";
 import { outputDir } from "./lib/paths.js";
@@ -70,7 +71,7 @@ async function main(): Promise<void> {
   if (feePayerAccount.error) {
     throw new Error(`fee payer account fetch failed: ${feePayerAccount.error.statusText}`);
   }
-  const feePayerNonceBefore = Number(feePayerAccount.account?.nonce.toString() ?? "0");
+  let feePayerNonceBefore = Number(feePayerAccount.account?.nonce.toString() ?? "0");
 
   const zkAppAddress = env.zkappPublicKey;
   if (!zkAppAddress) {
@@ -83,9 +84,61 @@ async function main(): Promise<void> {
   console.log("[settle] Compiling EligibilityProgram...");
   await EligibilityProgram.compile();
   console.log("[settle] Compiling VerificationRegistry contract...");
-  await VerificationRegistry.compile();
+  const { verificationKey } = await VerificationRegistry.compile();
 
-  const registry = new VerificationRegistry(PublicKey.fromBase58(zkAppAddress));
+  const zkAppPublicKey = PublicKey.fromBase58(zkAppAddress);
+  const zkAppAccount = await fetchAccount({ publicKey: zkAppPublicKey });
+  if (zkAppAccount.error) {
+    throw new Error(`zkApp account fetch failed: ${zkAppAccount.error.statusText}`);
+  }
+  const onChainVkHash = zkAppAccount.account?.zkapp?.verificationKey?.hash?.toString();
+  const targetVkHash = verificationKey.hash.toString();
+
+  if (onChainVkHash !== targetVkHash) {
+    console.log(
+      `[settle] Verification key mismatch — on-chain: ${onChainVkHash ?? "none"}, local: ${targetVkHash}`,
+    );
+    const zkAppPrivateKeyStr = env.zkappPrivateKey;
+    if (!zkAppPrivateKeyStr) {
+      throw new Error(
+        "on-chain verification key does not match compiled contract and ZKAPP_PRIVATE_KEY is not set — cannot auto-redeploy",
+      );
+    }
+
+    const zkAppPrivateKey = PrivateKey.fromBase58(zkAppPrivateKeyStr);
+    const hasExistingAccount = !zkAppAccount.error && Boolean(zkAppAccount.account);
+    const zkApp = new VerificationRegistry(zkAppPublicKey);
+
+    const deployTx = await Mina.transaction(
+      { sender: feePayerPublicKey, fee: TX_FEE, nonce: feePayerNonceBefore },
+      async () => {
+        if (!hasExistingAccount) {
+          AccountUpdate.fundNewAccount(feePayerPublicKey);
+        }
+        await zkApp.deploy({ verificationKey });
+      },
+    );
+
+    console.log("[settle] Proving redeployment transaction...");
+    await deployTx.prove();
+    const deployPendingTx = await deployTx.sign([feePayerKey, zkAppPrivateKey]).send();
+    console.log(`[settle] Redeployment tx: ${deployPendingTx.hash}`);
+
+    const nonceAfterDeploy = await waitForNonceIncrement(feePayerPublicKey, feePayerNonceBefore);
+    feePayerNonceBefore = nonceAfterDeploy;
+    console.log(`[settle] Redeployment confirmed, nonce now ${nonceAfterDeploy}`);
+
+    await writeDeployedAddressMetadata({
+      zkappPublicKey: zkAppPublicKey.toBase58(),
+      zkappPrivateKeyGenerated: false,
+      deployTxHash: deployPendingTx.hash,
+      alreadyDeployed: hasExistingAccount,
+      verificationKeyHash: targetVkHash,
+    });
+    console.log("[settle] Saved output/deployed-address.json");
+  }
+
+  const registry = new VerificationRegistry(zkAppPublicKey);
   const proofHash = proofHashFromJson(storedProof.proof);
 
   const tx = await Mina.transaction(

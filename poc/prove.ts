@@ -45,6 +45,7 @@ async function main(): Promise<void> {
     UInt64.from(disclosed.salary),
     UInt64.from(disclosed.hire_date_unix),
     Field(disclosed.status_hash),
+    Field(disclosed.response_body_hash),
     signature,
     SessionHeaderBytes.fromHex(disclosed.session_header_bytes),
   );

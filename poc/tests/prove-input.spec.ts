@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import { assertEligibilityPolicy, validateProofInputIntegrity } from "../lib/prove-input.js";
 import { commitmentHash, hashUtf8StringPoseidon } from "../lib/poseidon.js";
+import { buildDisclosedFields } from "../lib/disclosure.js";
+
+const REAL_RESPONSE_BODY =
+  '{"employee_id":"EMP-001","annual_salary":85000,"hire_date":"2023-06-15","employment_status":"active"}';
+
+const RESPONSE_BODY_HASH = hashUtf8StringPoseidon(REAL_RESPONSE_BODY).toString();
 
 interface DisclosedFieldsFixture {
   salary: number;
   hire_date_unix: number;
   status_hash: string;
+  response_body_hash: string;
   data_commitment: string;
   ecdsa_signature: {
     r: string;
@@ -19,11 +26,20 @@ interface DisclosedFieldsFixture {
   };
 }
 
+const STATUS_HASH = hashUtf8StringPoseidon("active");
+const DATA_COMMITMENT = commitmentHash(
+  85_000,
+  1_686_787_200_000,
+  STATUS_HASH,
+  hashUtf8StringPoseidon(REAL_RESPONSE_BODY),
+).toString();
+
 const VALID_FIXTURE: DisclosedFieldsFixture = {
   salary: 85_000,
   hire_date_unix: 1_686_787_200_000,
-  status_hash: "425066975693549922141733679725481389722356036482752749067457786220237218985",
-  data_commitment: "1234357605213887681571516522283666890866308643784466339214911188889297492356",
+  status_hash: STATUS_HASH.toString(),
+  response_body_hash: RESPONSE_BODY_HASH,
+  data_commitment: DATA_COMMITMENT,
   ecdsa_signature: {
     r: "10d2cd6d0473c33419478bf071c5b97a3f93f5e9b69db1102f0217c3cd3b3715",
     s: "1d5d94fe820061e7f6f90a04147a1984294e397f999bc2850b7ef2f19c8853d8",
@@ -53,10 +69,12 @@ describe("prove input integrity", () => {
     const fixture = buildFixture();
 
     const statusHash = hashUtf8StringPoseidon("active");
+    const responseBodyHash = hashUtf8StringPoseidon(REAL_RESPONSE_BODY);
     const recomputedCommitment = commitmentHash(
       fixture.salary,
       fixture.hire_date_unix,
       statusHash,
+      responseBodyHash,
     ).toString();
     expect(recomputedCommitment).toBe(fixture.data_commitment);
 
@@ -120,5 +138,45 @@ describe("prove input integrity", () => {
         },
       }),
     ).toThrow(/notary public key does not match trusted key/i);
+  });
+
+  it("Given fabricated salary values with valid ECDSA signature When off-chain verifier re-derives commitment from response body Then fabricated data commitment does not match real commitment", () => {
+    const realAttestation = {
+      session_header_bytes_hex: VALID_FIXTURE.session_header_bytes,
+      signature: {
+        r_hex: VALID_FIXTURE.ecdsa_signature.r,
+        s_hex: VALID_FIXTURE.ecdsa_signature.s,
+      },
+      notary_public_key: {
+        x_hex: VALID_FIXTURE.notary_public_key.x,
+        y_hex: VALID_FIXTURE.notary_public_key.y,
+      },
+      response_body: REAL_RESPONSE_BODY,
+      server_name: "localhost",
+      timestamp: 1700000000,
+    };
+
+    const realDisclosed = buildDisclosedFields(realAttestation);
+
+    const fabricatedSalary = 999_999;
+    const fabricatedStatusHash = hashUtf8StringPoseidon("active");
+    const fabricatedHireDateUnix = 1_686_787_200_000;
+    const responseBodyHash = hashUtf8StringPoseidon(realAttestation.response_body);
+    const fabricatedCommitment = commitmentHash(
+      fabricatedSalary,
+      fabricatedHireDateUnix,
+      fabricatedStatusHash,
+      responseBodyHash,
+    ).toString();
+
+    expect(fabricatedCommitment).not.toBe(realDisclosed.data_commitment);
+
+    const realCommitmentFromBody = commitmentHash(
+      realDisclosed.salary,
+      realDisclosed.hire_date_unix,
+      hashUtf8StringPoseidon("active"),
+      responseBodyHash,
+    ).toString();
+    expect(realCommitmentFromBody).toBe(realDisclosed.data_commitment);
   });
 });

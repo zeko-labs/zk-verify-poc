@@ -5,6 +5,7 @@ import {
   Field,
   Hash,
   Poseidon,
+  Struct,
   UInt64,
   ZkProgram,
   createEcdsa,
@@ -37,6 +38,11 @@ export class Secp256k1 extends createForeignCurve(Crypto.CurveParams.Secp256k1) 
 export class EcdsaSignature extends createEcdsa(Secp256k1) {}
 export class SessionHeaderBytes extends Bytes(SESSION_HEADER_LENGTH_BYTES) {}
 
+export class EligibilityOutput extends Struct({
+  eligible: Bool,
+  responseBodyHash: Field,
+}) {}
+
 const trustedNotaryPublicKey = new Secp256k1({
   x: hexToBigInt(TRUSTED_NOTARY_PUBLIC_KEY_X_HEX),
   y: hexToBigInt(TRUSTED_NOTARY_PUBLIC_KEY_Y_HEX),
@@ -45,15 +51,16 @@ const trustedNotaryPublicKey = new Secp256k1({
 export const EligibilityProgram = ZkProgram({
   name: "employment-eligibility",
   publicInput: Field,
-  publicOutput: Bool,
+  publicOutput: EligibilityOutput,
   methods: {
     verifyEligibility: {
-      privateInputs: [UInt64, UInt64, Field, EcdsaSignature, SessionHeaderBytes],
+      privateInputs: [UInt64, UInt64, Field, Field, EcdsaSignature, SessionHeaderBytes],
       async method(
         dataCommitment: Field,
         salary: UInt64,
         hireDateUnix: UInt64,
         statusHash: Field,
+        responseBodyHash: Field,
         signature: EcdsaSignature,
         sessionHeader: SessionHeaderBytes,
       ) {
@@ -61,6 +68,7 @@ export const EligibilityProgram = ZkProgram({
           salary.value,
           hireDateUnix.value,
           statusHash,
+          responseBodyHash,
         ]);
         computedDataCommitment.assertEquals(dataCommitment);
 
@@ -74,7 +82,7 @@ export const EligibilityProgram = ZkProgram({
         const tenureMonths = tenureMs.div(THIRTY_DAYS_MS_U64);
         tenureMonths.assertGreaterThanOrEqual(MIN_TENURE_MONTHS_U64);
 
-        return { publicOutput: Bool(true) };
+        return { publicOutput: new EligibilityOutput({ eligible: Bool(true), responseBodyHash }) };
       },
     },
   },

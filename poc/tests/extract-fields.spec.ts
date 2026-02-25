@@ -18,6 +18,7 @@ describe("field extraction and disclosure", () => {
     expect(disclosed.salary).toBe(85000);
     expect(disclosed.hire_date_unix).toBe(1686787200000);
     expect(disclosed.status_hash).toBe(hashUtf8StringPoseidon("active").toString());
+    expect(disclosed.response_body_hash.length).toBeGreaterThan(0);
     expect(disclosed.data_commitment.length).toBeGreaterThan(0);
     expect(disclosed.ecdsa_signature.r).toBe("bb");
   });

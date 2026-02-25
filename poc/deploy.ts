@@ -2,10 +2,9 @@ import { AccountUpdate, Mina, PrivateKey, PublicKey, fetchAccount } from "o1js";
 
 import { EligibilityProgram } from "./circuits/eligibility.js";
 import { VerificationRegistry } from "./contracts/VerificationRegistry.js";
+import { writeDeployedAddressMetadata } from "./lib/deploy-metadata.js";
 import { loadRuntimeEnv } from "./lib/env.js";
-import { writeJsonFile } from "./lib/io.js";
 
-const DEPLOYED_PATH = "output/deployed-address.json";
 const TX_FEE = 100_000_000;
 const POLL_DELAY_MS = 3_000;
 const MAX_NONCE_POLL_ATTEMPTS = 30;
@@ -75,11 +74,11 @@ async function main(): Promise<void> {
     console.log(
       "[deploy] Existing zkApp account detected with matching verification key. Skipping redeploy.",
     );
-    await writeJsonFile(DEPLOYED_PATH, {
-      zkapp_public_key: zkAppPublicKey.toBase58(),
-      zkapp_private_key_generated: env.zkappPrivateKey ? false : true,
-      deploy_tx_hash: "already-deployed",
-      already_deployed: true,
+    await writeDeployedAddressMetadata({
+      zkappPublicKey: zkAppPublicKey.toBase58(),
+      zkappPrivateKeyGenerated: env.zkappPrivateKey ? false : true,
+      deployTxHash: "already-deployed",
+      alreadyDeployed: true,
     });
     console.log("[deploy] Saved output/deployed-address.json");
     return;
@@ -114,12 +113,12 @@ async function main(): Promise<void> {
   const feePayerNonceAfter = await waitForNonceIncrement(feePayerPublicKey, feePayerNonceBefore);
   console.log(`[deploy] Fee payer nonce advanced ${feePayerNonceBefore} -> ${feePayerNonceAfter}`);
 
-  await writeJsonFile(DEPLOYED_PATH, {
-    zkapp_public_key: zkAppPublicKey.toBase58(),
-    zkapp_private_key_generated: env.zkappPrivateKey ? false : true,
-    deploy_tx_hash: pendingTx.hash,
-    already_deployed: hasExistingAccount,
-    verification_key_hash: targetVerificationKeyHash,
+  await writeDeployedAddressMetadata({
+    zkappPublicKey: zkAppPublicKey.toBase58(),
+    zkappPrivateKeyGenerated: env.zkappPrivateKey ? false : true,
+    deployTxHash: pendingTx.hash,
+    alreadyDeployed: hasExistingAccount,
+    verificationKeyHash: targetVerificationKeyHash,
   });
 
   console.log("[deploy] Saved output/deployed-address.json");

@@ -1,6 +1,7 @@
 packages:
   - '.'
   - 'poc'
+  - 'ui'
 
 catalog:
   dotenv: ^16.6.1
@@ -10,6 +11,12 @@ catalog:
   lefthook: ^2.1.1
   oxfmt: ^0.33.0
   oxlint: ^1.48.0
+  '@swc-node/register': ^1.11.1
+  '@swc/core': ^1.15.13
   tsx: ^4.20.5
   typescript: ^5.8.2
   vitest: ^2.1.8
+  nuxt: ^4.3.1
+  vue: ^3.5.28
+  vue-router: ^4.6.4
+  wrangler: ^4.47.3
