@@ -11,9 +11,9 @@ Status legend: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`
 5. Update this file immediately after each RED/GREEN step with command evidence.
 
 ## Active Pointer
-- `NEXT_TASK_ID`: `T-224`
+- `NEXT_TASK_ID`: `T-226`
 - Current owner status: `DONE`
-- Resume location: `T-224` reviewer fixes completed; await next task selection.
+- Resume location: `T-225` completed; attestation-to-proof binding gap closed.
 
 ## Verified Baseline (Already Green)
 - [x] `DONE` `T-001` Fresh repo initialized and core structure created.
@@ -605,3 +605,39 @@ Evidence log:
 - GREEN: `moon run poc:test -- --run poc/tests/ui-spa.spec.ts -t "Given deploy workflow requirements When inspecting ui Moon tasks Then ui:deploy depends on ui:build"` passed.
 - GREEN: `moon run poc:test -- --run poc/tests/run-poc.spec.ts poc/tests/run-poc-ineligible.spec.ts -t "(Given endpoint override requirements When inspecting run-poc.sh Then dotenv loading can be followed by a TLSN endpoint override|Given dotenv loading rewrites TLSN_ENDPOINT When run-poc-ineligible.sh executes Then the ineligible override is reapplied for the pipeline)"` passed.
 - GREEN: `moon run workspace:validate` passed with `poc:test`, `ui:validate`, `mock-server:test`, and `tlsnotary:test` green.
+
+### `T-225` Attestation-to-proof binding gap fix (response body hash)
+Status: `DONE`
+Goal: close the critical security gap where ECDSA signature verification and data commitment are disjoint in the circuit, allowing data substitution attacks. Implement hybrid response-body-hash binding (Option C).
+
+RED checklist:
+- [x] Add failing test demonstrating the vulnerability (fabricated data + valid ECDSA passes current validation).
+- [x] Add failing test for `response_body_hash` field in `DisclosedFields` and 4-field commitment hash.
+- [x] Add failing test for circuit `EligibilityOutput` struct public output (replacing bare `Bool`).
+
+GREEN checklist:
+- [x] Update `poseidon.ts` to accept 4th `responseBodyHash` parameter in `commitmentHash`.
+- [x] Update `disclosure.ts` to compute and include `response_body_hash` in `DisclosedFields`.
+- [x] Update `circuits/eligibility.ts` to add `Field` input for body hash, include in commitment, return `EligibilityOutput` struct.
+- [x] Update `prove-input.ts` to validate `response_body_hash` and recompute commitment with 4 fields.
+- [x] Update `prove.ts` to pass `responseBodyHash` as 6th circuit argument.
+- [x] Update `verify.ts` to perform off-chain attestation binding check (responseBodyHash + data commitment re-derivation).
+- [x] Update `VerificationRegistry.ts` for new `publicOutput` struct (`proof.publicOutput.eligible.toField()`).
+- [x] Update `security-contract.spec.ts` and other test assertions for new circuit shape.
+- [x] Update `README.md` security section with binding description and path to full on-chain trust.
+- [x] Re-run `moon run workspace:validate`.
+
+Evidence log:
+- RED: `moon run poc:test -- --run poc/tests/prove-input.spec.ts poc/tests/security-contract.spec.ts` failed with 5 expected failures: `commitmentHash` does not accept 4th `responseBodyHash` parameter, `buildDisclosedFields` does not return `response_body_hash`, circuit does not have `EligibilityOutput` struct or 6-field private inputs, and `verify.ts` has no attestation binding check.
+- GREEN: updated `poc/lib/poseidon.ts` with 4-field `commitmentHash(salary, hireDateUnixMs, statusHash, responseBodyHash)`.
+- GREEN: updated `poc/lib/disclosure.ts` with `response_body_hash` field and `hashUtf8StringPoseidon(attestation.response_body)` computation.
+- GREEN: updated `poc/circuits/eligibility.ts` with `EligibilityOutput` struct (`eligible: Bool, responseBodyHash: Field`), 6-field private inputs, and 4-field Poseidon commitment.
+- GREEN: updated `poc/lib/prove-input.ts` with `response_body_hash` validation and 4-field commitment recomputation.
+- GREEN: updated `poc/prove.ts` to pass `Field(disclosed.response_body_hash)` as 6th circuit argument.
+- GREEN: updated `poc/verify.ts` with off-chain attestation binding (responseBodyHash match + data commitment re-derivation from attestation fields).
+- GREEN: updated `poc/contracts/VerificationRegistry.ts` to use `proof.publicOutput.eligible.toField()`.
+- GREEN: updated `poc/tests/prove-input.spec.ts` fixture with `response_body_hash` and vulnerability demonstration test showing fabricated data produces different commitment.
+- GREEN: updated `poc/tests/security-contract.spec.ts` with assertions for `EligibilityOutput` struct, 6-field private inputs, disclosure `response_body_hash`, and verify attestation binding.
+- GREEN: updated `README.md` security section and added "Path to full on-chain trust" section.
+- GREEN: `moon run poc:test` passed (42/42 tests).
+- GREEN: `moon run workspace:validate` passed after `moon run poc:format-write` formatting fix.

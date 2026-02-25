@@ -16,11 +16,23 @@ Implemented hardening in this repository:
 - Settlement now requires a typed ZK proof object in `VerificationRegistry.recordVerification`; the contract verifies it in-circuit before mutating state.
 - The eligibility circuit pins a trusted notary secp256k1 public key and does not accept prover-chosen key/policy witness values.
 - Eligibility policy values are fixed for the PoC circuit (`salary >= 50_000`, `tenure >= 12 months`, `status == active`, evaluation date `2026-02-18`).
+- The circuit binds business data to a Poseidon hash of the TLS response body (`responseBodyHash`), which is exposed as a public output. Off-chain verification confirms this hash matches the attestation's response body. This prevents data substitution attacks where fabricated values are paired with a valid ECDSA signature.
 - TLS prover request inputs are sanitized to reject CRLF/header-injection payloads.
 - Pipeline startup waits for active service readiness (mock server + notary) instead of fixed sleeps.
 
 Known PoC limitation that remains out-of-scope in this cycle:
-- The circuit does not yet include transcript byte-range inclusion proofs that bind disclosed business fields directly to authenticated transcript commitments. This is a documented next-step hardening item for post-PoC work.
+- The circuit does not yet verify that the response body is included in the session header's transcript commitments (full transcript byte-range inclusion proofs). The binding from ECDSA-signed session header to specific response body bytes remains an off-chain trust assumption. This is a documented next-step hardening item for post-PoC work.
+
+## Path to full on-chain trust
+
+The current hybrid binding (response body hash as public output + off-chain verification) closes the primary data substitution attack but still relies on an off-chain step to link the response body to the TLS session. Full on-chain trust requires eliminating this off-chain dependency:
+
+1. **BLAKE3 circuit gadget**: TLSNotary's transcript commitments use BLAKE3 hashes. Implementing BLAKE3 verification inside o1js would allow the circuit to verify `PlaintextHash` commitments directly. This is a significant R&D effort (~50k+ constraints per invocation).
+2. **Session header parsing**: The 54-byte BCS-encoded session header contains a Merkle root (bytes 22-53) over all attestation body fields, including transcript commitments. The circuit must extract this root via fixed-offset byte slicing.
+3. **Merkle inclusion proof**: Provide sibling hashes proving the response body's `PlaintextHash` leaf is included under the session header's Merkle root. Verify the path in-circuit.
+4. **JSON field extraction proofs**: Prove in-circuit that specific byte ranges of the response body decode to the claimed salary/hire_date/status values. This may require a structured response format (e.g., fixed-offset binary encoding) instead of free-form JSON.
+
+Until these are implemented, the off-chain binding step is the trust boundary. Verifiers must independently re-hash the attestation response body and confirm it matches the proof's `responseBodyHash` public output.
 
 ## Prerequisites
 

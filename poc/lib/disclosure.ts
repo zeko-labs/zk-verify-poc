@@ -7,6 +7,7 @@ export interface DisclosedFields {
   salary: number;
   hire_date_unix: number;
   status_hash: string;
+  response_body_hash: string;
   data_commitment: string;
   ecdsa_signature: {
     r: string;
@@ -60,12 +61,19 @@ export function buildDisclosedFields(attestationInput: unknown): DisclosedFields
 
   const hireDateUnix = toUnixMsUtc(employee.hire_date);
   const statusHash = hashUtf8StringPoseidon(employee.employment_status);
-  const dataCommitment = commitmentHash(employee.annual_salary, hireDateUnix, statusHash);
+  const responseBodyHash = hashUtf8StringPoseidon(attestation.response_body);
+  const dataCommitment = commitmentHash(
+    employee.annual_salary,
+    hireDateUnix,
+    statusHash,
+    responseBodyHash,
+  );
 
   return {
     salary: employee.annual_salary,
     hire_date_unix: hireDateUnix,
     status_hash: statusHash.toString(),
+    response_body_hash: responseBodyHash.toString(),
     data_commitment: dataCommitment.toString(),
     ecdsa_signature: {
       r: attestation.signature.r_hex,

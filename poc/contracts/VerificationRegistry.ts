@@ -28,7 +28,7 @@ export class VerificationRegistry extends SmartContract {
   async recordVerification(proofHash: Field, proof: EligibilityProof) {
     proof.verify();
 
-    const result = proof.publicOutput.toField();
+    const result = proof.publicOutput.eligible.toField();
     this.lastProofHash.set(proofHash);
     this.lastResult.set(result);
 
