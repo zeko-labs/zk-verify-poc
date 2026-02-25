@@ -62,7 +62,7 @@ moon run workspace:run-ineligible
    proto install pnpm latest --pin local -y
    ```
 
-2. **Initialize submodules:**
+2. **Initialize submodules** (pulls the pinned TLSNotary fork at `vendor/tlsn`):
    ```bash
    git submodule update --init --recursive
    ```
