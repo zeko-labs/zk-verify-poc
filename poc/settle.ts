@@ -2,6 +2,7 @@ import { AccountUpdate, Field, Mina, Poseidon, PrivateKey, PublicKey, fetchAccou
 
 import { EligibilityProgram, EligibilityProof } from "./circuits/eligibility.js";
 import { VerificationRegistry } from "./contracts/VerificationRegistry.js";
+import { writeDeployedAddressMetadata } from "./lib/deploy-metadata.js";
 import { loadRuntimeEnv } from "./lib/env.js";
 import { readJsonFile } from "./lib/io.js";
 import { outputDir } from "./lib/paths.js";
@@ -87,6 +88,9 @@ async function main(): Promise<void> {
 
   const zkAppPublicKey = PublicKey.fromBase58(zkAppAddress);
   const zkAppAccount = await fetchAccount({ publicKey: zkAppPublicKey });
+  if (zkAppAccount.error) {
+    throw new Error(`zkApp account fetch failed: ${zkAppAccount.error.statusText}`);
+  }
   const onChainVkHash = zkAppAccount.account?.zkapp?.verificationKey?.hash?.toString();
   const targetVkHash = verificationKey.hash.toString();
 
@@ -123,6 +127,15 @@ async function main(): Promise<void> {
     const nonceAfterDeploy = await waitForNonceIncrement(feePayerPublicKey, feePayerNonceBefore);
     feePayerNonceBefore = nonceAfterDeploy;
     console.log(`[settle] Redeployment confirmed, nonce now ${nonceAfterDeploy}`);
+
+    await writeDeployedAddressMetadata({
+      zkappPublicKey: zkAppPublicKey.toBase58(),
+      zkappPrivateKeyGenerated: false,
+      deployTxHash: deployPendingTx.hash,
+      alreadyDeployed: hasExistingAccount,
+      verificationKeyHash: targetVkHash,
+    });
+    console.log("[settle] Saved output/deployed-address.json");
   }
 
   const registry = new VerificationRegistry(zkAppPublicKey);

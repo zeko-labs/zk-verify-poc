@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -10,6 +11,10 @@ import {
 import { join, resolve } from "node:path";
 
 import { defineNuxtModule } from "nuxt/kit";
+import {
+  deriveProofDirectoryRunMetadata,
+  type ProofDataManifestRunSummary,
+} from "../lib/proof-data";
 
 const TIMESTAMP_RUN_DIR_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/;
 const MINIMUM_RENDERABLE_ARTIFACT_FILES = new Set(["attestation.json", "disclosed-fields.json"]);
@@ -18,6 +23,7 @@ interface ProofDataManifestRun {
   id: string;
   filesPresent: string[];
   timestamp: string | null;
+  summary: ProofDataManifestRunSummary;
 }
 
 interface ProofDataManifest {
@@ -37,6 +43,14 @@ const DEFAULT_OPTIONS: Required<ProofOutputSyncOptions> = {
   publicDir: "proof-data",
   includeRootMetadata: true,
 };
+
+interface ProofPayload {
+  proof?:
+    | {
+        publicOutput?: string[];
+      }
+    | string;
+}
 
 function toTimestamp(runId: string): string | null {
   const match = runId.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})$/);
@@ -61,6 +75,48 @@ function listFiles(directoryPath: string): string[] {
   return readdirSync(directoryPath)
     .filter((entry) => statSync(join(directoryPath, entry)).isFile())
     .sort();
+}
+
+function parseJsonText<T>(input: string | null): T | null {
+  if (typeof input !== "string") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(input) as T;
+  } catch {
+    return null;
+  }
+}
+
+function readOptionalText(filePath: string): string | null {
+  try {
+    return readFileSync(filePath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function extractProofPublicOutput(proof: ProofPayload | null): string[] | undefined {
+  if (!proof?.proof || typeof proof.proof === "string") {
+    return undefined;
+  }
+
+  return proof.proof.publicOutput;
+}
+
+export function createManifestRunSummary(input: {
+  runId: string;
+  filesPresent: string[];
+  proofText: string | null;
+}): ProofDataManifestRunSummary {
+  const proof = parseJsonText<ProofPayload>(input.proofText);
+
+  return deriveProofDirectoryRunMetadata({
+    runId: input.runId,
+    publicOutput: extractProofPublicOutput(proof),
+    hasDisclosedFields: input.filesPresent.includes("disclosed-fields.json"),
+  });
 }
 
 export function selectTimestampRunDirs(entries: string[]): string[] {
@@ -141,11 +197,19 @@ function syncProofOutput(
     cpSync(sourceRunPath, targetRunPath, { recursive: true });
 
     const filesPresent = runEntryById.get(runId)?.filesPresent ?? listFiles(targetRunPath);
+    const proofText = filesPresent.includes("proof.json")
+      ? readOptionalText(join(sourceRunPath, "proof.json"))
+      : null;
 
     runs.push({
       id: runId,
       filesPresent,
       timestamp: toTimestamp(runId),
+      summary: createManifestRunSummary({
+        runId,
+        filesPresent,
+        proofText,
+      }),
     });
   }
 

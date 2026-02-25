@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { loadManifest, loadRunSummary, normalizeManifest } from "~~/lib/proof-data";
+import { loadManifest, normalizeManifest } from "~~/lib/proof-data";
 
 const { data, pending } = await useAsyncData(
   "proof-directory",
   async () => {
     const manifest = await loadManifest();
-    const runs = await Promise.all(manifest.runs.map((run) => loadRunSummary(run.id)));
+    const runs = manifest.runs.map((run) => ({
+      runId: run.id,
+      status: run.summary.status,
+      runDate: run.summary.runDate,
+      network: run.summary.network,
+    }));
 
     return {
       manifest,

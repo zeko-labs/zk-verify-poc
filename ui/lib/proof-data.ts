@@ -1,9 +1,16 @@
 export type ProofStatus = "verified" | "failed" | "unknown";
 
+export interface ProofDataManifestRunSummary {
+  status: ProofStatus;
+  runDate: string;
+  network: string;
+}
+
 export interface ProofDataManifestRun {
   id: string;
   filesPresent: string[];
   timestamp: string | null;
+  summary: ProofDataManifestRunSummary;
 }
 
 export interface ProofDataManifest {
@@ -106,8 +113,42 @@ const ARTIFACT_FILES = [
   "verification-key.json",
 ] as const;
 
+export const DEFAULT_PROOF_NETWORK = "Zeko Testnet";
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function normalizeRunSummaryStatus(
+  input: unknown,
+  fallback: ProofDataManifestRunSummary["status"],
+): ProofDataManifestRunSummary["status"] {
+  if (input === "verified" || input === "failed" || input === "unknown") {
+    return input;
+  }
+
+  return fallback;
+}
+
+function normalizeManifestRunSummary(
+  input: unknown,
+  fallback: ProofDataManifestRunSummary,
+): ProofDataManifestRunSummary {
+  if (!isObject(input)) {
+    return fallback;
+  }
+
+  return {
+    status: normalizeRunSummaryStatus(input.status, fallback.status),
+    runDate:
+      typeof input.runDate === "string" && input.runDate.length > 0
+        ? input.runDate
+        : fallback.runDate,
+    network:
+      typeof input.network === "string" && input.network.length > 0
+        ? input.network
+        : fallback.network,
+  };
 }
 
 export function normalizeManifest(input: unknown): ProofDataManifest {
@@ -117,13 +158,23 @@ export function normalizeManifest(input: unknown): ProofDataManifest {
 
   const runs = input.runs
     .filter((entry): entry is Record<string, unknown> => isObject(entry))
-    .map((entry) => ({
-      id: typeof entry.id === "string" ? entry.id : "",
-      filesPresent: Array.isArray(entry.filesPresent)
+    .map((entry) => {
+      const id = typeof entry.id === "string" ? entry.id : "";
+      const filesPresent = Array.isArray(entry.filesPresent)
         ? entry.filesPresent.filter((value): value is string => typeof value === "string")
-        : [],
-      timestamp: typeof entry.timestamp === "string" ? entry.timestamp : null,
-    }))
+        : [];
+      const fallbackSummary = deriveProofDirectoryRunMetadata({
+        runId: id,
+        hasDisclosedFields: filesPresent.includes("disclosed-fields.json"),
+      });
+
+      return {
+        id,
+        filesPresent,
+        timestamp: typeof entry.timestamp === "string" ? entry.timestamp : null,
+        summary: normalizeManifestRunSummary(entry.summary, fallbackSummary),
+      };
+    })
     .filter((entry) => entry.id.length > 0);
 
   return {
@@ -155,6 +206,25 @@ export function deriveRunStatus(input: {
   }
 
   return "unknown";
+}
+
+export function deriveProofDirectoryRunMetadata(input: {
+  runId: string;
+  publicOutput?: string[];
+  hasDisclosedFields: boolean;
+  network?: string | null;
+}): ProofDataManifestRunSummary {
+  return {
+    status: deriveRunStatus({
+      publicOutput: input.publicOutput,
+      hasDisclosedFields: input.hasDisclosedFields,
+    }),
+    runDate: runIdToDateLabel(input.runId),
+    network:
+      typeof input.network === "string" && input.network.length > 0
+        ? input.network
+        : DEFAULT_PROOF_NETWORK,
+  };
 }
 
 function deriveSettlementTxHash(settlement: SettlementPayload | null): string | null {
@@ -343,13 +413,16 @@ export async function loadRunSummary(runId: string): Promise<ProofSummary> {
     hasDisclosedFields: disclosedFields !== null,
   });
   const proofHash = selectProofFieldValue(status, extractProofPreviewValue(proof));
+  const summary = deriveProofDirectoryRunMetadata({
+    runId,
+    publicOutput: extractProofPublicOutput(proof),
+    hasDisclosedFields: disclosedFields !== null,
+  });
 
   return {
     runId,
-    runDate: runIdToDateLabel(runId),
-    status,
     proofHash,
-    network: "Zeko Testnet",
+    ...summary,
   };
 }
 

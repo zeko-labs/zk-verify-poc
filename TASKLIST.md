@@ -11,6 +11,6 @@ Status legend: `TODO`, `IN_PROGRESS`, `DONE`, `BLOCKED`
 5. Update this file immediately after each RED/GREEN step with command evidence.
 
 ## Active Pointer
-- `NEXT_TASK_ID`: `T-226`
+- `NEXT_TASK_ID`: `T-231`
 
 ## Open Work Queue

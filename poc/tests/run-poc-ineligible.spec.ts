@@ -118,6 +118,43 @@ exit 1
     expect(output).toContain("endpoint:/api/v1/employee/EMP-002");
   });
 
+  it("Given a command-style override with quoted arguments When run-poc-ineligible.sh executes Then it preserves override arguments and succeeds", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "run-poc-ineligible-"));
+    const stubPath = createPipelineStub(
+      tempDir,
+      `#!/bin/bash
+set -euo pipefail
+echo "arg1:\${1:-unset}"
+echo "arg2:\${2:-unset}"
+echo "arg3:\${3:-unset}"
+echo "arg4:\${4:-unset}"
+echo "endpoint:\${TLSN_ENDPOINT:-unset}"
+echo "[run-poc] failed at step: poc:prove" >&2
+echo "[prove] failed: Error: salary 49000 is below required minimum 50000" >&2
+exit 1
+`,
+    );
+
+    const result = spawnSync("bash", ["run-poc-ineligible.sh"], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        RUN_POC_INELIGIBLE_PIPELINE_CMD: `${stubPath} --note "hello world" --tag 'with spaces'`,
+      },
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+
+    const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+    expect(result.status).toBe(0);
+    expect(output).toContain("arg1:--note");
+    expect(output).toContain("arg2:hello world");
+    expect(output).toContain("arg3:--tag");
+    expect(output).toContain("arg4:with spaces");
+    expect(output).toContain("endpoint:/api/v1/employee/EMP-002");
+    expect(output).toContain("proof rejected as expected");
+  });
+
   it("Given a failure outside prove stage When run-poc-ineligible.sh executes Then it exits with diagnostics", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "run-poc-ineligible-"));
     const stubPath = createPipelineStub(
