@@ -21,7 +21,7 @@ Implemented hardening in this repository:
 - Pipeline startup waits for active service readiness (mock server + notary) instead of fixed sleeps.
 
 Known PoC limitation that remains out-of-scope in this cycle:
-- The circuit does not yet verify that the response body is included in the session header's transcript commitments (full transcript byte-range inclusion proofs). The binding from ECDSA-signed session header to specific response body bytes remains an off-chain trust assumption. This is a documented next-step hardening item for post-PoC work.
+- The circuit does not yet verify that the response body is included in the session header's transcript commitments (full transcript byte-range inclusion proofs). The binding from ECDSA-signed session header to specific response body bytes remains an off-chain trust assumption. This is a known hardening area.
 
 ## Path to full on-chain trust
 
