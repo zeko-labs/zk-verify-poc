@@ -1,0 +1,35 @@
+FROM debian:bookworm-slim
+
+# System dependencies (prerequisites from the README)
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install proto (README: Prerequisites)
+RUN curl -fsSL https://moonrepo.dev/install/proto.sh | bash -s -- --yes
+ENV PROTO_HOME="/root/.proto"
+ENV PATH="${PROTO_HOME}/shims:${PROTO_HOME}/bin:${PATH}"
+
+WORKDIR /app
+
+# README step 1: Clone the repository
+RUN git clone --recurse-submodules https://github.com/zeko-labs/zk-verify-poc.git .
+
+# README step 2: Install the toolchain
+RUN proto install
+
+# README step 3: Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# README step 4: Generate wallet keys
+RUN moon run poc:gen-wallet
+
+# Show the generated .env to prove it worked
+RUN echo "=== Generated .env ===" && cat .env
+
+CMD ["echo", "README instructions verified up to the faucet step. Run 'moon run poc:deploy' after funding."]

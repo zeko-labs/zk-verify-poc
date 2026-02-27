@@ -3,8 +3,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { deriveProofStatus, normalizeManifest } from "../lib/proof-data";
-import { selectTimestampRunDirs } from "../modules/proof-output-sync";
+import { deriveProofStatus, normalizeManifest } from "../lib/proof-data.js";
+import { selectTimestampRunDirs } from "../modules/proof-output-sync.js";
 
 describe("ui contract behavior", () => {
   it("Given Nuxt SPA requirements When reading ui/nuxt.config.ts Then SSR is explicitly disabled", () => {
@@ -35,12 +35,12 @@ describe("ui contract behavior", () => {
   });
 
   it("Given run directory identifiers When formatting for UI Then full datetime is preserved", async () => {
-    const proofLib = await import("../lib/proof-data");
+    const proofLib = await import("../lib/proof-data.js");
     expect(proofLib.runIdToDateLabel("2026-02-19T04-24-17")).toBe("2026-02-19 04:24:17");
   });
 
   it("Given proof artifact payload text When normalizing for UI display Then minified proof text is returned", async () => {
-    const proofLib = await import("../lib/proof-data");
+    const proofLib = await import("../lib/proof-data.js");
 
     expect(typeof (proofLib as Record<string, unknown>).normalizeProofPayload).toBe("function");
 
@@ -57,7 +57,7 @@ describe("ui contract behavior", () => {
   });
 
   it("Given proof preview requirements When selecting preview source Then proof payload property is preferred over whole JSON text", async () => {
-    const proofLib = await import("../lib/proof-data");
+    const proofLib = await import("../lib/proof-data.js");
     const extractProofPreviewValue = (
       proofLib as {
         extractProofPreviewValue?: (
@@ -93,7 +93,7 @@ describe("ui contract behavior", () => {
   });
 
   it("Given timestamp-named run directories When filtering by renderable artifact sets Then ineligible runs are included and unknown-only runs are excluded", async () => {
-    const syncModule = await import("../modules/proof-output-sync");
+    const syncModule = await import("../modules/proof-output-sync.js");
     const selectCompleteTimestampRunDirs = (
       syncModule as {
         selectCompleteTimestampRunDirs?: (
@@ -129,7 +129,7 @@ describe("ui contract behavior", () => {
   });
 
   it("Given duplicate complete run ids When filtering renderable run directories Then duplicate run ids are removed", async () => {
-    const syncModule = await import("../modules/proof-output-sync");
+    const syncModule = await import("../modules/proof-output-sync.js");
     const selectCompleteTimestampRunDirs = (
       syncModule as {
         selectCompleteTimestampRunDirs?: (
@@ -159,7 +159,7 @@ describe("ui contract behavior", () => {
   });
 
   it("Given ineligible artifact presence When deriving run status Then missing proof output is classified as failed", async () => {
-    const proofLib = await import("../lib/proof-data");
+    const proofLib = await import("../lib/proof-data.js");
     const deriveRunStatus = (
       proofLib as {
         deriveRunStatus?: (input: {
@@ -218,7 +218,7 @@ describe("ui contract behavior", () => {
   });
 
   it("Given ineligible run status When selecting proof field value Then ineligible values are empty", async () => {
-    const proofLib = await import("../lib/proof-data");
+    const proofLib = await import("../lib/proof-data.js");
     const selectProofFieldValue = (
       proofLib as {
         selectProofFieldValue?: (
@@ -303,7 +303,7 @@ describe("ui contract behavior", () => {
   });
 
   it("Given copied proof artifacts When generating manifest row summary Then sync emits status date and network metadata", async () => {
-    const syncModule = await import("../modules/proof-output-sync");
+    const syncModule = await import("../modules/proof-output-sync.js");
     const createManifestRunSummary = (
       syncModule as {
         createManifestRunSummary?: (input: {

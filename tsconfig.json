@@ -17,10 +17,14 @@
   "include": [
     "mock-server/**/*.ts",
     "poc/**/*.ts",
+    "ui/lib/**/*.ts",
+    "ui/modules/**/*.ts",
+    "ui/tests/**/*.ts",
     "mock-server/tests/**/*.ts",
     "poc/tests/**/*.ts",
     "mock-server/vitest.config.ts",
     "poc/vitest.config.ts",
+    "ui/vitest.config.ts",
     "vitest.config.ts"
   ]
 }

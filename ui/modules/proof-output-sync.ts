@@ -14,7 +14,7 @@ import { defineNuxtModule } from "nuxt/kit";
 import {
   deriveProofDirectoryRunMetadata,
   type ProofDataManifestRunSummary,
-} from "../lib/proof-data";
+} from "../lib/proof-data.js";
 
 const TIMESTAMP_RUN_DIR_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/;
 const MINIMUM_RENDERABLE_ARTIFACT_FILES = new Set(["attestation.json", "disclosed-fields.json"]);
