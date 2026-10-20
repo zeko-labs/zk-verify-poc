@@ -4,6 +4,14 @@ End-to-end proof of concept: TLS-attested employer data verified on-chain via zk
 
 A mock employer HTTPS server serves employee data over TLS 1.2. TLSNotary produces a cryptographic attestation of the TLS session. An o1js ZK circuit proves eligibility predicates over the attested fields (salary, tenure, employment status) without revealing raw values, while verifying the notary's ECDSA/secp256k1 signature in-circuit. The proof is settled on-chain to a `VerificationRegistry` zkApp on Zeko testnet and verified via GraphQL.
 
+## License
+
+Zeko-authored code and documentation in this repository are licensed under
+the Apache License, Version 2.0. See [LICENSE](./LICENSE).
+
+The TLSNotary submodule and other third-party components retain their own
+copyright and license notices.
+
 ## What it does
 
 1. A TLSNotary prover connects to a mock employer HTTPS server and produces a cryptographic attestation of the TLS session.
